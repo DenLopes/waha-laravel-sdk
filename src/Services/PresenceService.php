@@ -4,22 +4,22 @@ declare(strict_types=1);
 
 namespace DenLopes\Waha\Services;
 
-use DenLopes\Waha\Concerns\SendsWahaRequests;
-use DenLopes\Waha\Data\Output\WAHAChatPresencesData;
-use DenLopes\Waha\Enums\WahaPresenceEnum;
-use DenLopes\Waha\Support\WahaSession;
+use DenLopes\Waha\Concerns\SendsRequests;
+use DenLopes\Waha\Data\Output\ChatPresences;
+use DenLopes\Waha\Enums\PresenceStatus;
+use DenLopes\Waha\Session;
 
 class PresenceService
 {
-    use SendsWahaRequests;
+    use SendsRequests;
 
     /**
      * Set session presence (online, offline, typing, recording, paused).
      */
     public function setPresence(
-        WahaPresenceEnum $presence,
+        PresenceStatus $presence,
         ?string $chatId = null,
-        ?WahaSession $session = null,
+        ?Session $session = null,
     ): array {
         $payload = ['presence' => $presence->value];
 
@@ -33,22 +33,22 @@ class PresenceService
     /**
      * Get the presence for a chat (also subscribes to it).
      */
-    public function getPresence(WahaSession $session, string $chatId): WAHAChatPresencesData
+    public function getPresence(Session $session, string $chatId): ChatPresences
     {
         $data = $this->send('get', "/api/{session}/presence/{$chatId}", [], 'Communication with WAHA failed while fetching presence.', session: $session);
 
-        return WAHAChatPresencesData::fromArray($data);
+        return ChatPresences::fromArray($data);
     }
 
     /**
      * Get all subscribed presence information.
      */
-    public function getPresenceAll(WahaSession $session): array
+    public function getPresenceAll(Session $session): array
     {
         $data = $this->send('get', '/api/{session}/presence', [], 'Communication with WAHA failed while fetching presence.', session: $session);
 
         return array_map(
-            static fn (array $item) => WAHAChatPresencesData::fromArray($item),
+            static fn (array $item) => ChatPresences::fromArray($item),
             $data,
         );
     }
@@ -56,7 +56,7 @@ class PresenceService
     /**
      * Subscribe to presence events for a chat.
      */
-    public function subscribePresence(WahaSession $session, string $chatId): array
+    public function subscribePresence(Session $session, string $chatId): array
     {
         return $this->send('post', "/api/{session}/presence/{$chatId}/subscribe", [], 'Communication with WAHA failed while subscribing to presence.', session: $session);
     }

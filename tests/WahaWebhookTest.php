@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace DenLopes\Waha\Tests;
 
-use DenLopes\Waha\Exception\WahaWebhookException;
+use DenLopes\Waha\Exceptions\WebhookException;
 use DenLopes\Waha\Webhooks\WebhookGuard;
 use DenLopes\Waha\Webhooks\WebhookVerifier;
 use Illuminate\Support\Carbon;
@@ -28,7 +28,7 @@ final class WahaWebhookTest extends TestCase
         $body = '{"event":"message"}';
         $signature = hash_hmac('sha512', $body, 'right-secret');
 
-        $this->expectException(WahaWebhookException::class);
+        $this->expectException(WebhookException::class);
         $this->expectExceptionMessage('Invalid webhook signature.');
 
         (new WebhookVerifier)->verify('wrong-secret', $body, $signature, 'sha512');
@@ -39,7 +39,7 @@ final class WahaWebhookTest extends TestCase
         $body = '{"event":"message"}';
         $signature = hash_hmac('sha512', $body, 'secret');
 
-        $this->expectException(WahaWebhookException::class);
+        $this->expectException(WebhookException::class);
         $this->expectExceptionMessage('Unsupported webhook signature algorithm.');
 
         (new WebhookVerifier)->verify('secret', $body, $signature, 'sha1');
@@ -69,7 +69,7 @@ final class WahaWebhookTest extends TestCase
     {
         $guard = new WebhookGuard(maxClockSkewMs: 1000);
 
-        $this->expectException(WahaWebhookException::class);
+        $this->expectException(WebhookException::class);
         $this->expectExceptionMessage('timestamp is outside the allowed window');
 
         $guard->assertFreshTimestamp((int) Carbon::now()->subMinutes(10)->getTimestampMs());

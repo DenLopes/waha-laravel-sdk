@@ -4,34 +4,34 @@ declare(strict_types=1);
 
 namespace DenLopes\Waha\Services;
 
-use DenLopes\Waha\Concerns\SendsWahaRequests;
-use DenLopes\Waha\Data\Input\CreateGroupRequestData;
-use DenLopes\Waha\Data\Input\DescriptionRequestData;
-use DenLopes\Waha\Data\Input\JoinGroupRequestData;
-use DenLopes\Waha\Data\Input\ParticipantsRequestData;
-use DenLopes\Waha\Data\Input\ProfilePictureRequestData;
-use DenLopes\Waha\Data\Input\SubjectRequestData;
-use DenLopes\Waha\Data\Output\ChatPictureData;
-use DenLopes\Waha\Data\Output\CountResponseData;
-use DenLopes\Waha\Data\Output\GroupInfoData;
-use DenLopes\Waha\Data\Output\GroupJoinInfoData;
-use DenLopes\Waha\Data\Output\GroupParticipantData;
-use DenLopes\Waha\Data\Output\JoinGroupData;
-use DenLopes\Waha\Data\Output\ResultData;
-use DenLopes\Waha\Data\SettingsMemberAddModeData;
-use DenLopes\Waha\Data\SettingsSecurityChangeInfoData;
-use DenLopes\Waha\Enums\WahaGroupSortFieldEnum;
-use DenLopes\Waha\Enums\WahaSortOrderEnum;
-use DenLopes\Waha\Support\WahaSession;
+use DenLopes\Waha\Concerns\SendsRequests;
+use DenLopes\Waha\Data\Input\CreateGroupRequest;
+use DenLopes\Waha\Data\Input\DescriptionRequest;
+use DenLopes\Waha\Data\Input\JoinGroupRequest;
+use DenLopes\Waha\Data\Input\ParticipantsRequest;
+use DenLopes\Waha\Data\Input\ProfilePictureRequest;
+use DenLopes\Waha\Data\Input\SubjectRequest;
+use DenLopes\Waha\Data\Output\ChatPicture;
+use DenLopes\Waha\Data\Output\CountResponse;
+use DenLopes\Waha\Data\Output\GroupInfo;
+use DenLopes\Waha\Data\Output\GroupJoinInfo;
+use DenLopes\Waha\Data\Output\GroupParticipant;
+use DenLopes\Waha\Data\Output\JoinGroup;
+use DenLopes\Waha\Data\Output\Result;
+use DenLopes\Waha\Data\SettingsMemberAddMode;
+use DenLopes\Waha\Data\SettingsSecurityChangeInfo;
+use DenLopes\Waha\Enums\GroupSortField;
+use DenLopes\Waha\Enums\SortOrder;
+use DenLopes\Waha\Session;
 
 class GroupsService
 {
-    use SendsWahaRequests;
+    use SendsRequests;
 
     /**
      * Create a group.
      */
-    public function createGroup(WahaSession $session, CreateGroupRequestData $request): array
+    public function createGroup(Session $session, CreateGroupRequest $request): array
     {
         return $this->send('post', '/api/{session}/groups', $request->toArray(), 'Communication with WAHA failed while creating the group.', session: $session);
     }
@@ -39,12 +39,12 @@ class GroupsService
     /**
      * Get all groups.
      *
-     * @return GroupInfoData[]
+     * @return GroupInfo[]
      */
     public function getGroups(
-        WahaSession $session,
-        ?WahaGroupSortFieldEnum $sortBy = null,
-        ?WahaSortOrderEnum $sortOrder = null,
+        Session $session,
+        ?GroupSortField $sortBy = null,
+        ?SortOrder $sortOrder = null,
         ?int $limit = null,
         ?int $offset = null,
         ?array $exclude = null,
@@ -74,7 +74,7 @@ class GroupsService
         $data = $this->send('get', '/api/{session}/groups', $payload, 'Communication with WAHA failed while fetching groups.', session: $session);
 
         return array_map(
-            static fn (array $group) => GroupInfoData::fromArray($group),
+            static fn (array $group) => GroupInfo::fromArray($group),
             $data,
         );
     }
@@ -82,17 +82,17 @@ class GroupsService
     /**
      * Get a single group.
      */
-    public function getGroup(WahaSession $session, string $id): GroupInfoData
+    public function getGroup(Session $session, string $id): GroupInfo
     {
         $data = $this->send('get', "/api/{session}/groups/{$id}", [], 'Communication with WAHA failed while fetching the group.', session: $session);
 
-        return GroupInfoData::fromArray($data);
+        return GroupInfo::fromArray($data);
     }
 
     /**
      * Delete a group.
      */
-    public function deleteGroup(WahaSession $session, string $id): array
+    public function deleteGroup(Session $session, string $id): array
     {
         return $this->send('delete', "/api/{session}/groups/{$id}", [], 'Communication with WAHA failed while deleting the group.', session: $session);
     }
@@ -100,7 +100,7 @@ class GroupsService
     /**
      * Leave a group.
      */
-    public function leaveGroup(WahaSession $session, string $id): array
+    public function leaveGroup(Session $session, string $id): array
     {
         return $this->send('post', "/api/{session}/groups/{$id}/leave", [], 'Communication with WAHA failed while leaving the group.', session: $session);
     }
@@ -108,36 +108,36 @@ class GroupsService
     /**
      * Get group info before joining via code or invite URL.
      */
-    public function getJoinInfo(WahaSession $session, string $code): GroupJoinInfoData
+    public function getJoinInfo(Session $session, string $code): GroupJoinInfo
     {
         $data = $this->send('get', '/api/{session}/groups/join-info', [
             'code' => $code,
         ], 'Communication with WAHA failed while fetching the group join info.', session: $session);
 
-        return GroupJoinInfoData::fromArray($data);
+        return GroupJoinInfo::fromArray($data);
     }
 
     /**
      * Join a group via code or invite URL.
      */
-    public function joinGroup(WahaSession $session, JoinGroupRequestData $request): JoinGroupData
+    public function joinGroup(Session $session, JoinGroupRequest $request): JoinGroup
     {
         $data = $this->send('post', '/api/{session}/groups/join', $request->toArray(), 'Communication with WAHA failed while joining the group.', session: $session);
 
-        return JoinGroupData::fromArray($data);
+        return JoinGroup::fromArray($data);
     }
 
     /**
      * Get group participants.
      *
-     * @return GroupParticipantData[]
+     * @return GroupParticipant[]
      */
-    public function getGroupParticipants(WahaSession $session, string $id): array
+    public function getGroupParticipants(Session $session, string $id): array
     {
         $data = $this->send('get', "/api/{session}/groups/{$id}/participants/v2", [], 'Communication with WAHA failed while fetching the group participants.', session: $session);
 
         return array_map(
-            static fn (array $item) => GroupParticipantData::fromArray($item),
+            static fn (array $item) => GroupParticipant::fromArray($item),
             $data,
         );
     }
@@ -145,7 +145,7 @@ class GroupsService
     /**
      * Add participants to a group.
      */
-    public function addParticipants(WahaSession $session, string $id, ParticipantsRequestData $request): array
+    public function addParticipants(Session $session, string $id, ParticipantsRequest $request): array
     {
         return $this->send('post', "/api/{session}/groups/{$id}/participants/add", $request->toArray(), 'Communication with WAHA failed while adding group participants.', session: $session);
     }
@@ -153,7 +153,7 @@ class GroupsService
     /**
      * Remove participants from a group.
      */
-    public function removeParticipants(WahaSession $session, string $id, ParticipantsRequestData $request): array
+    public function removeParticipants(Session $session, string $id, ParticipantsRequest $request): array
     {
         return $this->send('post', "/api/{session}/groups/{$id}/participants/remove", $request->toArray(), 'Communication with WAHA failed while removing group participants.', session: $session);
     }
@@ -161,7 +161,7 @@ class GroupsService
     /**
      * Promote participants to admin.
      */
-    public function promoteToAdmin(WahaSession $session, string $id, ParticipantsRequestData $request): array
+    public function promoteToAdmin(Session $session, string $id, ParticipantsRequest $request): array
     {
         return $this->send('post', "/api/{session}/groups/{$id}/admin/promote", $request->toArray(), 'Communication with WAHA failed while promoting group participants.', session: $session);
     }
@@ -169,7 +169,7 @@ class GroupsService
     /**
      * Demote participants to regular users.
      */
-    public function demoteToAdmin(WahaSession $session, string $id, ParticipantsRequestData $request): array
+    public function demoteToAdmin(Session $session, string $id, ParticipantsRequest $request): array
     {
         return $this->send('post', "/api/{session}/groups/{$id}/admin/demote", $request->toArray(), 'Communication with WAHA failed while demoting group participants.', session: $session);
     }
@@ -177,39 +177,39 @@ class GroupsService
     /**
      * Get a group picture.
      */
-    public function getGroupPicture(WahaSession $session, string $id, bool $refresh = false): ChatPictureData
+    public function getGroupPicture(Session $session, string $id, bool $refresh = false): ChatPicture
     {
         $data = $this->send('get', "/api/{session}/groups/{$id}/picture", [
             'refresh' => $refresh,
         ], 'Communication with WAHA failed while fetching the group picture.', session: $session);
 
-        return ChatPictureData::fromArray($data);
+        return ChatPicture::fromArray($data);
     }
 
     /**
      * Set a group picture.
      */
-    public function setGroupPicture(WahaSession $session, string $id, ProfilePictureRequestData $request): ResultData
+    public function setGroupPicture(Session $session, string $id, ProfilePictureRequest $request): Result
     {
         $data = $this->send('put', "/api/{session}/groups/{$id}/picture", $request->toArray(), 'Communication with WAHA failed while setting the group picture.', session: $session);
 
-        return ResultData::fromArray($data);
+        return Result::fromArray($data);
     }
 
     /**
      * Delete a group picture.
      */
-    public function deleteGroupPicture(WahaSession $session, string $id): ResultData
+    public function deleteGroupPicture(Session $session, string $id): Result
     {
         $data = $this->send('delete', "/api/{session}/groups/{$id}/picture", [], 'Communication with WAHA failed while deleting the group picture.', session: $session);
 
-        return ResultData::fromArray($data);
+        return Result::fromArray($data);
     }
 
     /**
      * Update a group description.
      */
-    public function setGroupDescription(WahaSession $session, string $id, DescriptionRequestData $request): array
+    public function setGroupDescription(Session $session, string $id, DescriptionRequest $request): array
     {
         return $this->send('put', "/api/{session}/groups/{$id}/description", $request->toArray(), 'Communication with WAHA failed while setting the group description.', session: $session);
     }
@@ -217,7 +217,7 @@ class GroupsService
     /**
      * Update a group subject.
      */
-    public function setGroupSubject(WahaSession $session, string $id, SubjectRequestData $request): array
+    public function setGroupSubject(Session $session, string $id, SubjectRequest $request): array
     {
         return $this->send('put', "/api/{session}/groups/{$id}/subject", $request->toArray(), 'Communication with WAHA failed while setting the group subject.', session: $session);
     }
@@ -225,7 +225,7 @@ class GroupsService
     /**
      * Get a group invite code.
      */
-    public function getInviteCode(WahaSession $session, string $id): string
+    public function getInviteCode(Session $session, string $id): string
     {
         return (string) $this->send('get', "/api/{session}/groups/{$id}/invite-code", [], 'Communication with WAHA failed while fetching the group invite code.', session: $session);
     }
@@ -233,7 +233,7 @@ class GroupsService
     /**
      * Revoke the current group invite code and generate a new one.
      */
-    public function revokeInviteCode(WahaSession $session, string $id): string
+    public function revokeInviteCode(Session $session, string $id): string
     {
         return (string) $this->send('post', "/api/{session}/groups/{$id}/invite-code/revoke", [], 'Communication with WAHA failed while revoking the group invite code.', session: $session);
     }
@@ -241,17 +241,17 @@ class GroupsService
     /**
      * Get the number of groups.
      */
-    public function getGroupsCount(WahaSession $session): CountResponseData
+    public function getGroupsCount(Session $session): CountResponse
     {
         $data = $this->send('get', '/api/{session}/groups/count', [], 'Communication with WAHA failed while counting groups.', session: $session);
 
-        return CountResponseData::fromArray($data);
+        return CountResponse::fromArray($data);
     }
 
     /**
      * Refresh groups from the server.
      */
-    public function refreshGroups(WahaSession $session): array
+    public function refreshGroups(Session $session): array
     {
         return $this->send('post', '/api/{session}/groups/refresh', [], 'Communication with WAHA failed while refreshing groups.', session: $session);
     }
@@ -259,7 +259,7 @@ class GroupsService
     /**
      * Get the legacy (non-v2) participants list.
      */
-    public function getParticipants(WahaSession $session, string $id): array
+    public function getParticipants(Session $session, string $id): array
     {
         return $this->send('get', "/api/{session}/groups/{$id}/participants", [], 'Communication with WAHA failed while fetching the group participants.', session: $session);
     }
@@ -267,39 +267,39 @@ class GroupsService
     /**
      * Allow only admins to edit group info (title, description, photo).
      */
-    public function setInfoAdminOnly(WahaSession $session, string $id, SettingsSecurityChangeInfoData $settings): array
+    public function setInfoAdminOnly(Session $session, string $id, SettingsSecurityChangeInfo $settings): array
     {
         return $this->send('put', "/api/{session}/groups/{$id}/settings/security/info-admin-only", $settings->toArray(), 'Communication with WAHA failed while setting the group info admin only.', session: $session);
     }
 
-    public function getInfoAdminOnly(WahaSession $session, string $id): SettingsSecurityChangeInfoData
+    public function getInfoAdminOnly(Session $session, string $id): SettingsSecurityChangeInfo
     {
         $data = $this->send('get', "/api/{session}/groups/{$id}/settings/security/info-admin-only", [], 'Communication with WAHA failed while fetching the group info admin only setting.', session: $session);
 
-        return SettingsSecurityChangeInfoData::fromArray($data);
+        return SettingsSecurityChangeInfo::fromArray($data);
     }
 
-    public function setMessagesAdminOnly(WahaSession $session, string $id, SettingsSecurityChangeInfoData $settings): array
+    public function setMessagesAdminOnly(Session $session, string $id, SettingsSecurityChangeInfo $settings): array
     {
         return $this->send('put', "/api/{session}/groups/{$id}/settings/security/messages-admin-only", $settings->toArray(), 'Communication with WAHA failed while setting the group messages admin only.', session: $session);
     }
 
-    public function getMessagesAdminOnly(WahaSession $session, string $id): SettingsSecurityChangeInfoData
+    public function getMessagesAdminOnly(Session $session, string $id): SettingsSecurityChangeInfo
     {
         $data = $this->send('get', "/api/{session}/groups/{$id}/settings/security/messages-admin-only", [], 'Communication with WAHA failed while fetching the group messages admin only setting.', session: $session);
 
-        return SettingsSecurityChangeInfoData::fromArray($data);
+        return SettingsSecurityChangeInfo::fromArray($data);
     }
 
-    public function setMemberAddMode(WahaSession $session, string $id, SettingsMemberAddModeData $settings): array
+    public function setMemberAddMode(Session $session, string $id, SettingsMemberAddMode $settings): array
     {
         return $this->send('put', "/api/{session}/groups/{$id}/settings/security/member-add-mode", $settings->toArray(), 'Communication with WAHA failed while setting the group member add mode.', session: $session);
     }
 
-    public function getMemberAddMode(WahaSession $session, string $id): SettingsMemberAddModeData
+    public function getMemberAddMode(Session $session, string $id): SettingsMemberAddMode
     {
         $data = $this->send('get', "/api/{session}/groups/{$id}/settings/security/member-add-mode", [], 'Communication with WAHA failed while fetching the group member add mode.', session: $session);
 
-        return SettingsMemberAddModeData::fromArray($data);
+        return SettingsMemberAddMode::fromArray($data);
     }
 }

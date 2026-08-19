@@ -4,29 +4,29 @@ declare(strict_types=1);
 
 namespace DenLopes\Waha\Services;
 
-use DenLopes\Waha\Concerns\SendsWahaRequests;
-use DenLopes\Waha\Data\Input\ContactRequestData;
-use DenLopes\Waha\Data\Input\ContactUpdateBodyData;
-use DenLopes\Waha\Data\Output\ContactInfoData;
-use DenLopes\Waha\Data\Output\ResultData;
-use DenLopes\Waha\Data\Output\WANumberExistResultData;
-use DenLopes\Waha\Enums\WahaContactSortFieldEnum;
-use DenLopes\Waha\Enums\WahaSortOrderEnum;
-use DenLopes\Waha\Support\WahaSession;
+use DenLopes\Waha\Concerns\SendsRequests;
+use DenLopes\Waha\Data\Input\ContactRequest;
+use DenLopes\Waha\Data\Input\ContactUpdateBody;
+use DenLopes\Waha\Data\Output\ContactInfo;
+use DenLopes\Waha\Data\Output\NumberExistResult;
+use DenLopes\Waha\Data\Output\Result;
+use DenLopes\Waha\Enums\ContactSortField;
+use DenLopes\Waha\Enums\SortOrder;
+use DenLopes\Waha\Session;
 
 class ContactsService
 {
-    use SendsWahaRequests;
+    use SendsRequests;
 
     /**
      * Get all contacts.
      *
-     * @return ContactInfoData[]
+     * @return ContactInfo[]
      */
     public function getAllContacts(
-        ?WahaSession $session = null,
-        ?WahaContactSortFieldEnum $sortBy = null,
-        ?WahaSortOrderEnum $sortOrder = null,
+        ?Session $session = null,
+        ?ContactSortField $sortBy = null,
+        ?SortOrder $sortOrder = null,
         ?int $limit = null,
         ?int $offset = null,
     ): array {
@@ -51,7 +51,7 @@ class ContactsService
         $data = $this->send('get', '/api/contacts/all', $payload, 'Communication with WAHA failed while fetching contacts.');
 
         return array_map(
-            static fn (array $item) => ContactInfoData::fromArray($item),
+            static fn (array $item) => ContactInfo::fromArray($item),
             $data,
         );
     }
@@ -59,20 +59,20 @@ class ContactsService
     /**
      * Get basic contact info.
      */
-    public function getContact(string $contactId, ?WahaSession $session = null): ContactInfoData
+    public function getContact(string $contactId, ?Session $session = null): ContactInfo
     {
         $data = $this->send('get', '/api/contacts', [
             'contactId' => $contactId,
             'session'   => $this->session($session),
         ], 'Communication with WAHA failed while fetching the contact.');
 
-        return ContactInfoData::fromArray($data);
+        return ContactInfo::fromArray($data);
     }
 
     /**
      * Get the contact's "about" info (returns null if not readable).
      */
-    public function getContactAbout(string $contactId, ?WahaSession $session = null): ?string
+    public function getContactAbout(string $contactId, ?Session $session = null): ?string
     {
         $data = $this->send('get', '/api/contacts/about', [
             'contactId' => $contactId,
@@ -87,7 +87,7 @@ class ContactsService
      */
     public function getContactProfilePicture(
         string $contactId,
-        ?WahaSession $session = null,
+        ?Session $session = null,
         bool $refresh = false,
     ): ?string {
         $data = $this->send('get', '/api/contacts/profile-picture', [
@@ -102,20 +102,20 @@ class ContactsService
     /**
      * Check whether a phone number is registered in WhatsApp.
      */
-    public function checkExists(string $phone, ?WahaSession $session = null): WANumberExistResultData
+    public function checkExists(string $phone, ?Session $session = null): NumberExistResult
     {
         $data = $this->send('get', '/api/contacts/check-exists', [
             'phone'   => $phone,
             'session' => $this->session($session),
         ], 'Communication with WAHA failed while checking the number.');
 
-        return WANumberExistResultData::fromArray($data);
+        return NumberExistResult::fromArray($data);
     }
 
     /**
      * Block a contact.
      */
-    public function blockContact(ContactRequestData $request): array
+    public function blockContact(ContactRequest $request): array
     {
         return $this->send('post', '/api/contacts/block', $request->toArray(), 'Communication with WAHA failed while blocking the contact.');
     }
@@ -123,7 +123,7 @@ class ContactsService
     /**
      * Unblock a contact.
      */
-    public function unblockContact(ContactRequestData $request): array
+    public function unblockContact(ContactRequest $request): array
     {
         return $this->send('post', '/api/contacts/unblock', $request->toArray(), 'Communication with WAHA failed while unblocking the contact.');
     }
@@ -131,20 +131,20 @@ class ContactsService
     /**
      * Get basic contact info for a session.
      */
-    public function getContactBySession(WahaSession $session, string $id): ContactInfoData
+    public function getContactBySession(Session $session, string $id): ContactInfo
     {
         $data = $this->send('get', "/api/{session}/contacts/{$id}", [], 'Communication with WAHA failed while fetching the session contact.', session: $session);
 
-        return ContactInfoData::fromArray($data);
+        return ContactInfo::fromArray($data);
     }
 
     /**
      * Create or update a contact on the phone address book.
      */
-    public function upsertContact(WahaSession $session, string $chatId, ContactUpdateBodyData $body): ResultData
+    public function upsertContact(Session $session, string $chatId, ContactUpdateBody $body): Result
     {
         $data = $this->send('put', "/api/{session}/contacts/{$chatId}", $body->toArray(), 'Communication with WAHA failed while upserting the contact.', session: $session);
 
-        return ResultData::fromArray($data);
+        return Result::fromArray($data);
     }
 }

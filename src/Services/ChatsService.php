@@ -4,22 +4,22 @@ declare(strict_types=1);
 
 namespace DenLopes\Waha\Services;
 
-use DenLopes\Waha\Concerns\SendsWahaRequests;
-use DenLopes\Waha\Data\Input\OverviewBodyRequestData;
+use DenLopes\Waha\Concerns\SendsRequests;
+use DenLopes\Waha\Data\Input\OverviewBodyRequest;
 use DenLopes\Waha\Data\Output\ChatData;
-use DenLopes\Waha\Data\Output\ChatPictureData;
-use DenLopes\Waha\Data\Output\ChatSummaryData;
-use DenLopes\Waha\Data\Output\ReadChatMessagesData;
-use DenLopes\Waha\Data\Output\WAMessageData;
-use DenLopes\Waha\Enums\WahaAckEnum;
-use DenLopes\Waha\Enums\WahaChatSortFieldEnum;
-use DenLopes\Waha\Enums\WahaMessageSortFieldEnum;
-use DenLopes\Waha\Enums\WahaSortOrderEnum;
-use DenLopes\Waha\Support\WahaSession;
+use DenLopes\Waha\Data\Output\ChatPicture;
+use DenLopes\Waha\Data\Output\ChatSummary;
+use DenLopes\Waha\Data\Output\MessageData;
+use DenLopes\Waha\Data\Output\ReadChatMessages;
+use DenLopes\Waha\Enums\Ack;
+use DenLopes\Waha\Enums\ChatSortField;
+use DenLopes\Waha\Enums\MessageSortField;
+use DenLopes\Waha\Enums\SortOrder;
+use DenLopes\Waha\Session;
 
 class ChatsService
 {
-    use SendsWahaRequests;
+    use SendsRequests;
 
     /**
      * Get all chats for a session.
@@ -27,9 +27,9 @@ class ChatsService
      * @return ChatData[]
      */
     public function getChats(
-        ?WahaSession $session = null,
-        ?WahaChatSortFieldEnum $sortBy = null,
-        ?WahaSortOrderEnum $sortOrder = null,
+        ?Session $session = null,
+        ?ChatSortField $sortBy = null,
+        ?SortOrder $sortOrder = null,
         ?bool $merge = null,
         ?int $limit = null,
         ?int $offset = null,
@@ -67,10 +67,10 @@ class ChatsService
     /**
      * Get a chats overview suitable for building a "chats" UI.
      *
-     * @return ChatSummaryData[]
+     * @return ChatSummary[]
      */
     public function getChatsOverview(
-        ?WahaSession $session = null,
+        ?Session $session = null,
         ?bool $merge = null,
         ?int $limit = 20,
         ?int $offset = null,
@@ -97,7 +97,7 @@ class ChatsService
         $data = $this->send('get', '/api/{session}/chats/overview', $payload, 'Communication with WAHA failed while fetching the chats overview.', session: $session);
 
         return array_map(
-            static fn (array $item) => ChatSummaryData::fromArray($item),
+            static fn (array $item) => ChatSummary::fromArray($item),
             $data,
         );
     }
@@ -105,33 +105,33 @@ class ChatsService
     /**
      * Get a chat picture.
      */
-    public function getChatPicture(WahaSession $session, string $chatId, bool $refresh = false): ChatPictureData
+    public function getChatPicture(Session $session, string $chatId, bool $refresh = false): ChatPicture
     {
         $data = $this->send('get', "/api/{session}/chats/{$chatId}/picture", [
             'refresh' => $refresh,
         ], 'Communication with WAHA failed while fetching the chat picture.', session: $session);
 
-        return ChatPictureData::fromArray($data);
+        return ChatPicture::fromArray($data);
     }
 
     /**
      * Get messages in a chat.
      *
-     * @return WAMessageData[]
+     * @return MessageData[]
      */
     public function getChatMessages(
-        WahaSession $session,
+        Session $session,
         string $chatId,
         ?int $limit = 10,
         ?int $offset = null,
-        ?WahaMessageSortFieldEnum $sortBy = null,
-        ?WahaSortOrderEnum $sortOrder = null,
+        ?MessageSortField $sortBy = null,
+        ?SortOrder $sortOrder = null,
         ?bool $downloadMedia = null,
         ?bool $merge = null,
         ?int $timestampLte = null,
         ?int $timestampGte = null,
         ?bool $fromMe = null,
-        ?WahaAckEnum $ack = null,
+        ?Ack $ack = null,
     ): array {
         $payload = ['limit' => $limit];
 
@@ -180,7 +180,7 @@ class ChatsService
         );
 
         return array_map(
-            static fn (array $item) => WAMessageData::fromArray($item),
+            static fn (array $item) => MessageData::fromArray($item),
             $data,
         );
     }
@@ -189,12 +189,12 @@ class ChatsService
      * Get a single message from a chat.
      */
     public function getChatMessage(
-        WahaSession $session,
+        Session $session,
         string $chatId,
         string $messageId,
         ?bool $downloadMedia = true,
         ?bool $merge = true,
-    ): WAMessageData {
+    ): MessageData {
         $payload = [];
 
         if ($downloadMedia !== null) {
@@ -213,14 +213,14 @@ class ChatsService
             session: $session,
         );
 
-        return WAMessageData::fromArray($data);
+        return MessageData::fromArray($data);
     }
 
     /**
      * Edit a message in a chat.
      */
     public function editMessage(
-        WahaSession $session,
+        Session $session,
         string $chatId,
         string $messageId,
         string $text,
@@ -249,7 +249,7 @@ class ChatsService
     /**
      * Delete a message from a chat.
      */
-    public function deleteMessage(WahaSession $session, string $chatId, string $messageId): array
+    public function deleteMessage(Session $session, string $chatId, string $messageId): array
     {
         return $this->send('delete', "/api/{session}/chats/{$chatId}/messages/{$messageId}", [], 'Communication with WAHA failed while deleting the message.', session: $session);
     }
@@ -257,7 +257,7 @@ class ChatsService
     /**
      * Clear all messages from a chat.
      */
-    public function clearMessages(WahaSession $session, string $chatId): array
+    public function clearMessages(Session $session, string $chatId): array
     {
         return $this->send('delete', "/api/{session}/chats/{$chatId}/messages", [], 'Communication with WAHA failed while clearing the chat messages.', session: $session);
     }
@@ -266,11 +266,11 @@ class ChatsService
      * Mark unread messages in a chat as read.
      */
     public function readChatMessages(
-        WahaSession $session,
+        Session $session,
         string $chatId,
         ?int $messages = null,
         ?int $days = null,
-    ): ReadChatMessagesData {
+    ): ReadChatMessages {
         $query = [];
 
         if ($messages !== null) {
@@ -290,13 +290,13 @@ class ChatsService
             session: $session,
         );
 
-        return ReadChatMessagesData::fromArray($data);
+        return ReadChatMessages::fromArray($data);
     }
 
     /**
      * Pin a message in a chat.
      */
-    public function pinMessage(WahaSession $session, string $chatId, string $messageId, int $duration = 86400): array
+    public function pinMessage(Session $session, string $chatId, string $messageId, int $duration = 86400): array
     {
         return $this->send('post', "/api/{session}/chats/{$chatId}/messages/{$messageId}/pin", [
             'duration' => $duration,
@@ -306,7 +306,7 @@ class ChatsService
     /**
      * Unpin a message in a chat.
      */
-    public function unpinMessage(WahaSession $session, string $chatId, string $messageId): array
+    public function unpinMessage(Session $session, string $chatId, string $messageId): array
     {
         return $this->send('post', "/api/{session}/chats/{$chatId}/messages/{$messageId}/unpin", [], 'Communication with WAHA failed while unpinning the message.', session: $session);
     }
@@ -314,7 +314,7 @@ class ChatsService
     /**
      * Archive a chat.
      */
-    public function archiveChat(WahaSession $session, string $chatId): array
+    public function archiveChat(Session $session, string $chatId): array
     {
         return $this->send('post', "/api/{session}/chats/{$chatId}/archive", [], 'Communication with WAHA failed while archiving the chat.', session: $session);
     }
@@ -322,7 +322,7 @@ class ChatsService
     /**
      * Unarchive a chat.
      */
-    public function unarchiveChat(WahaSession $session, string $chatId): array
+    public function unarchiveChat(Session $session, string $chatId): array
     {
         return $this->send('post', "/api/{session}/chats/{$chatId}/unarchive", [], 'Communication with WAHA failed while unarchiving the chat.', session: $session);
     }
@@ -330,7 +330,7 @@ class ChatsService
     /**
      * Mark a chat as unread.
      */
-    public function unreadChat(WahaSession $session, string $chatId): array
+    public function unreadChat(Session $session, string $chatId): array
     {
         return $this->send('post', "/api/{session}/chats/{$chatId}/unread", [], 'Communication with WAHA failed while marking the chat as unread.', session: $session);
     }
@@ -338,7 +338,7 @@ class ChatsService
     /**
      * Delete a chat.
      */
-    public function deleteChat(WahaSession $session, string $chatId): array
+    public function deleteChat(Session $session, string $chatId): array
     {
         return $this->send('delete', "/api/{session}/chats/{$chatId}", [], 'Communication with WAHA failed while deleting the chat.', session: $session);
     }
@@ -346,14 +346,14 @@ class ChatsService
     /**
      * Get a chats overview using POST (useful when the ids filter is large).
      *
-     * @return ChatSummaryData[]
+     * @return ChatSummary[]
      */
-    public function getChatsOverviewPost(WahaSession $session, OverviewBodyRequestData $request): array
+    public function getChatsOverviewPost(Session $session, OverviewBodyRequest $request): array
     {
         $data = $this->send('post', '/api/{session}/chats/overview', $request->toArray(), 'Communication with WAHA failed while fetching the chats overview.', session: $session);
 
         return array_map(
-            static fn (array $item) => ChatSummaryData::fromArray($item),
+            static fn (array $item) => ChatSummary::fromArray($item),
             $data,
         );
     }

@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace DenLopes\Waha\Webhooks;
 
-use DenLopes\Waha\Data\Output\WebhookData;
-use DenLopes\Waha\Exception\WahaIntegrationException;
-use DenLopes\Waha\Exception\WahaWebhookException;
+use DenLopes\Waha\Data\Output\Webhook;
+use DenLopes\Waha\Exceptions\IntegrationException;
+use DenLopes\Waha\Exceptions\WebhookException;
 use DenLopes\Waha\WahaServiceProvider;
-use DenLopes\Waha\Webhooks\Events\WahaWebhookReceived;
-use DenLopes\Waha\Webhooks\Jobs\ProcessWahaWebhookJob;
-use DenLopes\Waha\Webhooks\Models\WahaWebhookEvent;
+use DenLopes\Waha\Webhooks\Events\WebhookReceived;
+use DenLopes\Waha\Webhooks\Jobs\ProcessWebhookJob;
+use DenLopes\Waha\Webhooks\Models\WebhookEvent;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -20,14 +20,14 @@ use Illuminate\Support\Facades\Log;
  *
  * The route is registered by {@see WahaServiceProvider} when webhooks
  * are enabled. It verifies the signature/timestamp/replay, parses the payload
- * into a {@see WebhookData}, then dispatches it (inline or through the queue).
+ * into a {@see Webhook}, then dispatches it (inline or through the queue).
  */
 final class WebhookController
 {
     public function __construct(
         private readonly WebhookVerifier $verifier,
         private readonly WebhookGuard $guard,
-        private readonly WahaWebhookRouter $router,
+        private readonly WebhookRouter $router,
     ) {}
 
     public function __invoke(Request $request): JsonResponse
@@ -52,7 +52,7 @@ final class WebhookController
 
         try {
             $this->assertValid($rawBody, $secret, $hmac, $algo, $timestampMs);
-        } catch (WahaWebhookException $e) {
+        } catch (WebhookException $e) {
             Log::channel('wahaError')->warning('WAHA webhook rejected.', [
                 'reason'     => $e->reason,
                 'request_id' => $requestId,
@@ -71,8 +71,8 @@ final class WebhookController
         }
 
         try {
-            $webhook = WebhookData::fromJson($rawBody);
-        } catch (WahaIntegrationException $e) {
+            $webhook = Webhook::fromJson($rawBody);
+        } catch (IntegrationException $e) {
             Log::channel('wahaError')->warning('WAHA webhook payload is invalid.', [
                 'error' => $e->getMessage(),
             ]);
@@ -95,13 +95,13 @@ final class WebhookController
     /**
      * Persist the verified delivery when webhook storage is enabled.
      */
-    private function store(WebhookData $webhook, string $rawBody, ?string $requestId): void
+    private function store(Webhook $webhook, string $rawBody, ?string $requestId): void
     {
         if (!(bool) config('waha.webhooks.store.enabled', false)) {
             return;
         }
 
-        WahaWebhookEvent::query()->create([
+        WebhookEvent::query()->create([
             'event'      => $webhook->event,
             'session'    => $webhook->session !== '' ? $webhook->session : null,
             'request_id' => $requestId,
@@ -111,12 +111,12 @@ final class WebhookController
     }
 
     /**
-     * @throws WahaWebhookException
+     * @throws WebhookException
      */
     private function assertValid(string $rawBody, string $secret, ?string $hmac, ?string $algo, ?int $timestampMs): void
     {
         if ((bool) config('waha.webhooks.require_hmac', true) && $hmac === null) {
-            throw new WahaWebhookException(
+            throw new WebhookException(
                 'Missing webhook HMAC.',
                 reason: 'missing_hmac',
                 status: 401,
@@ -130,12 +130,12 @@ final class WebhookController
         $this->guard->assertFreshTimestamp($timestampMs);
     }
 
-    private function dispatch(WebhookData $webhook, string $rawBody, ?string $requestId, ?int $timestampMs): void
+    private function dispatch(Webhook $webhook, string $rawBody, ?string $requestId, ?int $timestampMs): void
     {
         $mode = (string) config('waha.webhooks.processing.mode', 'sync');
 
         if ($mode === 'queue') {
-            $job = new ProcessWahaWebhookJob($webhook, $rawBody, $requestId, $timestampMs);
+            $job = new ProcessWebhookJob($webhook, $rawBody, $requestId, $timestampMs);
 
             $connection = config('waha.webhooks.processing.queue_connection');
             $queueName = (string) config('waha.webhooks.processing.queue_name', 'default');
@@ -153,7 +153,7 @@ final class WebhookController
             return;
         }
 
-        $event = new WahaWebhookReceived($webhook, $rawBody, $requestId, $timestampMs);
+        $event = new WebhookReceived($webhook, $rawBody, $requestId, $timestampMs);
 
         event($event);
         $this->router->handle($event);

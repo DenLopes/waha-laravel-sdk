@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace DenLopes\Waha\Webhooks;
 
-use DenLopes\Waha\Exception\WahaWebhookException;
+use DenLopes\Waha\Exceptions\WebhookException;
 
 /**
  * Verifies the WAHA webhook HMAC signature.
@@ -38,7 +38,7 @@ final class WebhookVerifier
     /**
      * Verify a signature against the raw body.
      *
-     * @throws WahaWebhookException When the signature is missing or invalid.
+     * @throws WebhookException When the signature is missing or invalid.
      */
     public function verify(string $secret, string $rawBody, ?string $hmacHeader, ?string $algoHeader = null): void
     {
@@ -67,9 +67,9 @@ final class WebhookVerifier
     /**
      * @param  array<string, mixed>  $context
      */
-    private function invalidSignature(string $message, array $context = []): WahaWebhookException
+    private function invalidSignature(string $message, array $context = []): WebhookException
     {
-        return new WahaWebhookException(
+        return new WebhookException(
             $message,
             reason: 'invalid_hmac',
             status: 401,

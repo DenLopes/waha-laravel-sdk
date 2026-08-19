@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace DenLopes\Waha\Tests;
 
-use DenLopes\Waha\Debug\WahaDebugStore;
-use DenLopes\Waha\Exception\NoDataException;
-use DenLopes\Waha\Exception\WahaNotImplementedException;
-use DenLopes\Waha\Exception\WahaRateLimitException;
-use DenLopes\Waha\Exception\WahaServerException;
-use DenLopes\Waha\Exception\WahaSessionNotFoundException;
-use DenLopes\Waha\Http\WahaRequest;
+use DenLopes\Waha\Debug\DebugStore;
+use DenLopes\Waha\Exceptions\NoDataException;
+use DenLopes\Waha\Exceptions\NotImplementedException;
+use DenLopes\Waha\Exceptions\RateLimitException;
+use DenLopes\Waha\Exceptions\ServerException;
+use DenLopes\Waha\Exceptions\SessionNotFoundException;
+use DenLopes\Waha\Http\HttpClient;
 use Illuminate\Support\Facades\Http;
 
 final class WahaRequestTest extends WahaTestCase
@@ -31,7 +31,7 @@ final class WahaRequestTest extends WahaTestCase
             'waha.test/*' => Http::response(['name' => 'default', 'status' => 'WORKING'], 200),
         ]);
 
-        $result = app(WahaRequest::class)->make('get', '/api/sessions');
+        $result = app(HttpClient::class)->make('get', '/api/sessions');
 
         $this->assertSame(['name' => 'default', 'status' => 'WORKING'], $result);
     }
@@ -42,7 +42,7 @@ final class WahaRequestTest extends WahaTestCase
             'waha.test/*' => Http::response('', 200),
         ]);
 
-        $result = app(WahaRequest::class)->make('delete', '/api/sessions/default');
+        $result = app(HttpClient::class)->make('delete', '/api/sessions/default');
 
         $this->assertSame([], $result);
     }
@@ -53,9 +53,9 @@ final class WahaRequestTest extends WahaTestCase
             'waha.test/*' => Http::response([], 404),
         ]);
 
-        $this->expectException(WahaSessionNotFoundException::class);
+        $this->expectException(SessionNotFoundException::class);
 
-        app(WahaRequest::class)->make('get', '/api/sessions/default');
+        app(HttpClient::class)->make('get', '/api/sessions/default');
     }
 
     public function test_404_on_global_endpoint_maps_to_no_data_exception(): void
@@ -66,7 +66,7 @@ final class WahaRequestTest extends WahaTestCase
 
         $this->expectException(NoDataException::class);
 
-        app(WahaRequest::class)->make('get', '/api/keys/missing');
+        app(HttpClient::class)->make('get', '/api/keys/missing');
     }
 
     public function test_429_maps_to_rate_limit_exception(): void
@@ -75,9 +75,9 @@ final class WahaRequestTest extends WahaTestCase
             'waha.test/*' => Http::response([], 429),
         ]);
 
-        $this->expectException(WahaRateLimitException::class);
+        $this->expectException(RateLimitException::class);
 
-        app(WahaRequest::class)->make('get', '/api/sessions/default');
+        app(HttpClient::class)->make('get', '/api/sessions/default');
     }
 
     public function test_500_maps_to_server_exception(): void
@@ -86,9 +86,9 @@ final class WahaRequestTest extends WahaTestCase
             'waha.test/*' => Http::response([], 500),
         ]);
 
-        $this->expectException(WahaServerException::class);
+        $this->expectException(ServerException::class);
 
-        app(WahaRequest::class)->make('get', '/api/sessions/default');
+        app(HttpClient::class)->make('get', '/api/sessions/default');
     }
 
     public function test_501_maps_to_not_implemented_exception(): void
@@ -97,9 +97,9 @@ final class WahaRequestTest extends WahaTestCase
             'waha.test/*' => Http::response([], 501),
         ]);
 
-        $this->expectException(WahaNotImplementedException::class);
+        $this->expectException(NotImplementedException::class);
 
-        app(WahaRequest::class)->make('post', '/api/forwardMessage');
+        app(HttpClient::class)->make('post', '/api/forwardMessage');
     }
 
     public function test_retries_transient_5xx_then_succeeds(): void
@@ -112,7 +112,7 @@ final class WahaRequestTest extends WahaTestCase
                 ->push(['name' => 'default', 'status' => 'WORKING'], 200),
         ]);
 
-        $result = app(WahaRequest::class)->make('get', '/api/sessions/default');
+        $result = app(HttpClient::class)->make('get', '/api/sessions/default');
 
         $this->assertSame(['name' => 'default', 'status' => 'WORKING'], $result);
         Http::assertSentCount(2);
@@ -126,9 +126,9 @@ final class WahaRequestTest extends WahaTestCase
             'waha.test/*' => Http::response(['error' => 'boom'], 500),
         ]);
 
-        $this->expectException(WahaServerException::class);
+        $this->expectException(ServerException::class);
 
-        app(WahaRequest::class)->make('post', '/api/sendText', ['text' => 'Hello']);
+        app(HttpClient::class)->make('post', '/api/sendText', ['text' => 'Hello']);
 
         Http::assertSentCount(1);
     }
@@ -139,7 +139,7 @@ final class WahaRequestTest extends WahaTestCase
             'waha.test/*' => Http::response('PNGDATA', 200, ['Content-Type' => 'image/png']),
         ]);
 
-        $result = app(WahaRequest::class)->download(
+        $result = app(HttpClient::class)->download(
             '/api/sessions/default/auth/qr',
             ['format' => 'image'],
             'image/png',
@@ -156,9 +156,9 @@ final class WahaRequestTest extends WahaTestCase
             'waha.test/*' => Http::response(['name' => 'default'], 200),
         ]);
 
-        $store = app(WahaDebugStore::class);
+        $store = app(DebugStore::class);
 
-        app(WahaRequest::class)->make('get', '/api/sessions');
+        app(HttpClient::class)->make('get', '/api/sessions');
 
         $last = $store->last();
 

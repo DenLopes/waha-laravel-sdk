@@ -4,19 +4,19 @@ declare(strict_types=1);
 
 namespace DenLopes\Waha\Data\Output;
 
-use DenLopes\Waha\Data\Input\SessionConfigData;
-use DenLopes\Waha\Data\WahaData;
-use DenLopes\Waha\Enums\WahaSessionStatusEnum;
+use DenLopes\Waha\Data\Data;
+use DenLopes\Waha\Data\Input\SessionConfig;
+use DenLopes\Waha\Enums\SessionStatus;
 
-final readonly class SessionData extends WahaData
+final readonly class SessionData extends Data
 {
     /**
-     * @param  SessionConfigData|null  $config  Session config.
+     * @param  SessionConfig|null  $config  Session config.
      */
     public function __construct(
         public string $name,
-        public ?WahaSessionStatusEnum $status,
-        public ?SessionConfigData $config,
+        public ?SessionStatus $status,
+        public ?SessionConfig $config,
     ) {}
 
     /**
@@ -28,9 +28,9 @@ final readonly class SessionData extends WahaData
     {
         return new self(
             name: (string) ($data['name'] ?? ''),
-            status: WahaSessionStatusEnum::tryFrom((string) ($data['status'] ?? '')),
+            status: SessionStatus::tryFrom((string) ($data['status'] ?? '')),
             config: isset($data['config']) && is_array($data['config'])
-                ? SessionConfigData::fromArray($data['config'])
+                ? SessionConfig::fromArray($data['config'])
                 : null,
         );
     }

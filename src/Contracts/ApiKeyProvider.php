@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace DenLopes\Waha\Contracts;
 
-use DenLopes\Waha\Enums\WahaApiKeyModeEnum;
+use DenLopes\Waha\Enums\ApiKeyMode;
 
 interface ApiKeyProvider
 {
@@ -14,5 +14,5 @@ interface ApiKeyProvider
 
     public function sessionKey(string $hostKey, string $sessionName): ?string;
 
-    public function mode(string $hostKey): WahaApiKeyModeEnum;
+    public function mode(string $hostKey): ApiKeyMode;
 }

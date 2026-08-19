@@ -1,0 +1,15 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    level: 6
+    paths:
+        - src
+    tmpDir: build/phpstan
+
+    # WAHA payloads are raw JSON, so a bare `array` is almost always
+    # `array<string, mixed>`. Requiring a value type on every one produces
+    # more noise than signal here.
+    ignoreErrors:
+        -
+            identifier: missingType.iterableValue

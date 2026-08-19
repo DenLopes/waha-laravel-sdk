@@ -10,7 +10,10 @@
         "laravel/framework": "^10.0 || ^11.0 || ^12.0 || ^13.0"
     },
     "require-dev": {
+        "larastan/larastan": "^3.0",
         "laravel/pint": "^1.13",
+        "orchestra/testbench": "^11.0",
+        "phpstan/phpstan": "^2.0",
         "phpunit/phpunit": "^12.0"
     },
     "autoload": {
@@ -27,13 +30,17 @@
         "laravel": {
             "providers": [
                 "DenLopes\\Waha\\WahaServiceProvider"
-            ]
+            ],
+            "aliases": {
+                "Waha": "DenLopes\\Waha\\Facades\\Waha"
+            }
         }
     },
     "scripts": {
         "test": "vendor/bin/phpunit",
         "pint": "vendor/bin/pint",
-        "pint:test": "vendor/bin/pint --test"
+        "pint:test": "vendor/bin/pint --test",
+        "phpstan": "vendor/bin/phpstan analyse --memory-limit=1G"
     },
     "config": {
         "sort-packages": true

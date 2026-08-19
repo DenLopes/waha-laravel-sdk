@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace DenLopes\Waha\Tests;
 
-use DenLopes\Waha\Enums\WahaApiKeyModeEnum;
-use DenLopes\Waha\Exception\UnknownHostException;
+use DenLopes\Waha\Enums\ApiKeyMode;
+use DenLopes\Waha\Exceptions\UnknownHostException;
 use DenLopes\Waha\Registry\ConfigHostRegistry;
 use DenLopes\Waha\Security\ConfigApiKeyProvider;
 
@@ -65,6 +65,6 @@ final class WahaHostRegistryTest extends WahaTestCase
         $this->assertSame('admin-key', $keys->adminKey('primary'));
         $this->assertSame('sales-key', $keys->sessionKey('primary', 'sales'));
         $this->assertSame('X-Custom-Key', $keys->headerName('primary'));
-        $this->assertSame(WahaApiKeyModeEnum::STRICT_SESSION_KEY, $keys->mode('primary'));
+        $this->assertSame(ApiKeyMode::STRICT_SESSION_KEY, $keys->mode('primary'));
     }
 }

@@ -131,6 +131,37 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Conversations (anti-ban)
+    |--------------------------------------------------------------------------
+    |
+    | Settings used by the fluent `Conversation` resource to send messages
+    | in a human-like way and avoid being flagged as spam:
+    |
+    |   - humanize: markRead → startTyping → (typing delay) → stopTyping → send
+    |   - typing_*: random typing duration, plus an amount per character
+    |   - cooldown_*: random wait between consecutive messages
+    |   - max_messages_per_window / window_seconds: pause once the cap is hit
+    |
+    | The defaults mirror WAHA's recommendation of sending only a handful of
+    | messages per contact and waiting 30-60 seconds between messages.
+    |
+    */
+    'conversations' => [
+        'humanize'                    => (bool) env('WAHA_CONVERSATIONS_HUMANIZE', true),
+        'typing_min_ms'               => (int) env('WAHA_CONVERSATIONS_TYPING_MIN_MS', 800),
+        'typing_max_ms'               => (int) env('WAHA_CONVERSATIONS_TYPING_MAX_MS', 3000),
+        'typing_per_character_ms'     => (float) env('WAHA_CONVERSATIONS_TYPING_PER_CHAR_MS', 60.0),
+        'typing_pause_chance_percent' => (int) env('WAHA_CONVERSATIONS_TYPING_PAUSE_CHANCE_PERCENT', 12),
+        'typing_pause_min_ms'         => (int) env('WAHA_CONVERSATIONS_TYPING_PAUSE_MIN_MS', 400),
+        'typing_pause_max_ms'         => (int) env('WAHA_CONVERSATIONS_TYPING_PAUSE_MAX_MS', 1500),
+        'cooldown_min_ms'             => (int) env('WAHA_CONVERSATIONS_COOLDOWN_MIN_MS', 30000),
+        'cooldown_max_ms'             => (int) env('WAHA_CONVERSATIONS_COOLDOWN_MAX_MS', 60000),
+        'max_messages_per_window'     => (int) env('WAHA_CONVERSATIONS_MAX_MESSAGES_PER_WINDOW', 4),
+        'window_seconds'              => (int) env('WAHA_CONVERSATIONS_WINDOW_SECONDS', 3600),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Webhooks
     |--------------------------------------------------------------------------
     |
@@ -174,7 +205,7 @@ return [
             'enabled' => (bool) env('WAHA_WEBHOOKS_STORE_ENABLED', false),
         ],
 
-        // Map WAHA event names to handler classes (implement WahaWebhookHandler).
+        // Map WAHA event names to handler classes (implement WebhookHandler).
         // A '*' suffix (e.g. "message.*") matches any event under that prefix.
         'handlers' => [
             // 'message.any' => \DenLopes\Waha\Handlers\MessageHandler::class,

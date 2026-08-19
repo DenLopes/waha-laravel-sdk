@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace DenLopes\Waha\Data\Output;
 
-use DenLopes\Waha\Data\WahaData;
+use DenLopes\Waha\Data\Data;
 
 /**
  * A WhatsApp chat returned by the chats endpoints.
@@ -13,7 +13,7 @@ use DenLopes\Waha\Data\WahaData;
  * fields are typed here and the full payload is preserved in {@see self::$raw}
  * for forward compatibility.
  */
-final readonly class ChatData extends WahaData
+final readonly class ChatData extends Data
 {
     /**
      * @param  array<string, mixed>  $raw  The complete, unmodified chat payload.

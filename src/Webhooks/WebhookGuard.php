@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace DenLopes\Waha\Webhooks;
 
-use DenLopes\Waha\Exception\WahaWebhookException;
+use DenLopes\Waha\Exceptions\WebhookException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 
@@ -24,7 +24,7 @@ final class WebhookGuard
     /**
      * Reject a timestamp that is too far from the current clock.
      *
-     * @throws WahaWebhookException When the timestamp is outside the allowed window.
+     * @throws WebhookException When the timestamp is outside the allowed window.
      */
     public function assertFreshTimestamp(?int $timestampMs): void
     {
@@ -38,7 +38,7 @@ final class WebhookGuard
             return;
         }
 
-        throw new WahaWebhookException(
+        throw new WebhookException(
             'The webhook timestamp is outside the allowed window.',
             reason: 'timestamp_outside_window',
             status: 400,

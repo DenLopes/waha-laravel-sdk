@@ -6,11 +6,11 @@ namespace DenLopes\Waha;
 
 use DenLopes\Waha\Contracts\ApiKeyProvider;
 use DenLopes\Waha\Contracts\HostRegistry;
+use DenLopes\Waha\Contracts\HttpClient as HttpClientContract;
 use DenLopes\Waha\Contracts\PinStore;
 use DenLopes\Waha\Contracts\SessionRouter;
-use DenLopes\Waha\Contracts\WahaClientInterface;
-use DenLopes\Waha\Debug\WahaDebugStore;
-use DenLopes\Waha\Http\WahaRequest;
+use DenLopes\Waha\Debug\DebugStore;
+use DenLopes\Waha\Http\HttpClient;
 use DenLopes\Waha\Pin\DbPinStore;
 use DenLopes\Waha\Registry\ConfigHostRegistry;
 use DenLopes\Waha\Registry\DbHostRegistry;
@@ -29,8 +29,9 @@ class WahaServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(__DIR__.'/../config/waha.php', 'waha');
         $this->mergeConfigFrom(__DIR__.'/../config/logging.php', 'logging.channels');
 
-        $this->app->bind(WahaClientInterface::class, WahaRequest::class);
-        $this->app->singleton(WahaDebugStore::class);
+        $this->app->bind(HttpClientContract::class, HttpClient::class);
+        $this->app->singleton(DebugStore::class);
+        $this->app->singleton(Client::class);
 
         $this->app->bind(HostRegistry::class, function () {
             return (string) config('waha.registry.driver', 'config') === 'db'

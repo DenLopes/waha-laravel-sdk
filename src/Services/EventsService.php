@@ -4,24 +4,24 @@ declare(strict_types=1);
 
 namespace DenLopes\Waha\Services;
 
-use DenLopes\Waha\Concerns\SendsWahaRequests;
-use DenLopes\Waha\Data\Input\EventMessageData;
-use DenLopes\Waha\Data\Output\WAMessageData;
-use DenLopes\Waha\Support\WahaSession;
+use DenLopes\Waha\Concerns\SendsRequests;
+use DenLopes\Waha\Data\Input\EventMessage;
+use DenLopes\Waha\Data\Output\MessageData;
+use DenLopes\Waha\Session;
 
 class EventsService
 {
-    use SendsWahaRequests;
+    use SendsRequests;
 
     /**
      * Send an event message.
      */
     public function sendEvent(
-        WahaSession $session,
+        Session $session,
         string $chatId,
-        EventMessageData $event,
+        EventMessage $event,
         ?string $replyTo = null,
-    ): WAMessageData {
+    ): MessageData {
         $payload = [
             'chatId' => $chatId,
             'event'  => $event->toArray(),
@@ -33,6 +33,6 @@ class EventsService
 
         $data = $this->send('post', '/api/{session}/events', $payload, 'Communication with WAHA failed while sending the event.', session: $session);
 
-        return WAMessageData::fromArray($data);
+        return MessageData::fromArray($data);
     }
 }

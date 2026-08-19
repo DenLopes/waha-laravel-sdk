@@ -1,31 +1,33 @@
-# WAHA Integration
+# WAHA Laravel SDK
 
-This package is a typed, multi-host Laravel client for the [WAHA](https://waha.devlike.pro/)
-(WhatsApp HTTP API) server. It wraps the HTTP endpoints in injectable services,
-maps JSON payloads to/from DTOs, and provides fluent chat/message resources,
-webhook verification/dispatch, and config/DB-backed host routing — so application
-code never has to touch raw request/response arrays.
+A typed, multi-host Laravel client for [WAHA](https://waha.devlike.pro/) (WhatsApp
+HTTP API). It wraps the HTTP endpoints in injectable services, maps JSON payloads
+to and from DTOs, and adds a small fluent layer for chat, message, and
+human-like conversation flows. Webhook verification, dispatch, and config- or
+DB-backed host routing are built in.
+
+## Table of contents
+
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Quick start](#quick-start)
+- [Resources](#resources)
+- [Sessions](#sessions)
+- [Services](#services)
+- [DTOs](#dtos)
+- [Configuration](#configuration)
+- [Multi-host](#multi-host)
+- [Logging](#logging)
+- [Webhooks](#webhooks)
+- [Errors](#errors)
+- [Architecture](#architecture)
+- [Coverage](#coverage)
+- [Testing](#testing)
 
 ## Requirements
 
 - PHP `^8.3`
 - Laravel `^10.0 || ^11.0 || ^12.0 || ^13.0`
-
-## Table of contents
-
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Multi-host](#multi-host)
-- [Logging](#logging)
-- [Architecture](#architecture)
-- [Quick start](#quick-start)
-- [Fluent](#fluent)
-- [Sessions](#sessions)
-- [DTOs](#dtos)
-- [Errors](#errors)
-- [Webhooks](#webhooks)
-- [Coverage](#coverage)
-- [Testing](#testing)
 
 ## Installation
 
@@ -33,8 +35,8 @@ code never has to touch raw request/response arrays.
 composer require denlopes/waha-laravel-sdk
 ```
 
-Laravel package discovery registers `DenLopes\Waha\WahaServiceProvider`
-automatically. Publish the config to customize it:
+Package discovery registers `DenLopes\Waha\WahaServiceProvider` and the `Waha`
+facade automatically. Publish the config and migrations:
 
 ```bash
 php artisan vendor:publish --tag="waha-config"
@@ -46,8 +48,8 @@ Add the WAHA connection settings to your `.env` (see
 
 ### Local development
 
-When developing the package alongside an application, register it as a
-Composer path repository in the application's `composer.json`:
+When working on the package alongside an application, register it as a Composer
+path repository:
 
 ```json
 {
@@ -64,303 +66,185 @@ Composer path repository in the application's `composer.json`:
 }
 ```
 
-## Configuration
-
-All settings are read through the standard Laravel `config()` helper and come
-from `config/waha.php` / the environment.
-
-| Config key             | Env var                 | Default                 | Description                                   |
-| ---------------------- | ----------------------- | ----------------------- | --------------------------------------------- |
-| `waha.base_url`        | `WAHA_BASE_URL`         | `http://localhost:3000` | Base URL of the WAHA server.                  |
-| `waha.api_key`         | `WAHA_API_KEY`          | _(none)_                | Secret sent via the `X-Api-Key` header.       |
-| `waha.default_session` | `WAHA_DEFAULT_SESSION`  | `default`               | Session used when none is provided explicitly. |
-| `waha.timeout`         | `WAHA_TIMEOUT`          | `30`                    | HTTP request timeout, in seconds.             |
-| `waha.connect_timeout` | `WAHA_CONNECT_TIMEOUT`  | `5`                     | TCP connection timeout, in seconds.           |
-| `waha.retry_attempts`  | `WAHA_RETRY_ATTEMPTS`   | `3`                     | Retries for transient HTTP failures (and connection errors for idempotent methods). |
-| `waha.retry_delay_ms`  | `WAHA_RETRY_DELAY_MS`   | `200`                   | Initial retry backoff in ms (exponential, with jitter). |
-
-Additional settings live in their own sections: [Multi-host](#multi-host)
-(`waha.default_host`, `waha.hosts`, `waha.registry`, `waha.routing`),
-[Webhooks](#webhooks) (`waha.webhooks`), and [Logging](#logging)
-(`waha` / `wahaError` channels).
-
-Example `.env`:
-
-```dotenv
-WAHA_BASE_URL=http://localhost:3000
-WAHA_API_KEY=your-secret-key
-WAHA_DEFAULT_SESSION=default
-WAHA_TIMEOUT=30
-WAHA_CONNECT_TIMEOUT=5
-WAHA_RETRY_ATTEMPTS=3
-WAHA_RETRY_DELAY_MS=200
-```
-
-## Multi-host
-
-Configure `waha.hosts` to talk to more than one WAHA server. When empty, the
-legacy single-host keys above are used as the `primary` host.
-
-```php
-// config/waha.php
-'default_host' => env('WAHA_DEFAULT_HOST', 'primary'),
-
-'hosts' => [
-    'primary' => [
-        'base_url'        => env('WAHA_PRIMARY_URL'),
-        'api_key'         => env('WAHA_PRIMARY_API_KEY'),
-        'api_key_header'  => env('WAHA_API_KEY_HEADER', 'X-Api-Key'),
-        'default_session' => env('WAHA_PRIMARY_DEFAULT_SESSION', 'default'),
-        'mode'            => env('WAHA_PRIMARY_MODE', 'admin_fallback'), // admin_fallback|strict_session_key
-        'session_keys'    => [],
-    ],
-    'secondary' => [
-        'base_url' => env('WAHA_SECONDARY_URL'),
-        'api_key'  => env('WAHA_SECONDARY_API_KEY'),
-    ],
-],
-```
-
-Host selection is abstracted behind `HostRegistry`, `ApiKeyProvider`, and
-`SessionRouter` contracts. Host definitions are normalized into an immutable
-`WahaHostConfigData` value object, and the `mode` string is represented by the
-`WahaApiKeyModeEnum` enum (`ADMIN_FALLBACK` / `STRICT_SESSION_KEY`).
-
-### DB-backed hosts
-
-Set `WAHA_REGISTRY_DRIVER=db` to read hosts from the `waha_hosts` table instead
-of `config/waha.php`. Run the migrations (`php artisan migrate`), then seed the
-table with your hosts. Each host is keyed by a unique `key` and can optionally
-define per-session API keys.
-
-### Session → host pinning
-
-Set `WAHA_ROUTING_DRIVER=pin` to resolve the host from the `waha_session_pins`
-table (session name → host key), falling back to `default_host` when unknown.
-This is what lets each company/tenant use its own WhatsApp number — and, when it
-grows, its own WAHA host — without hardcoding that mapping in the SDK.
-
-## Logging
-
-The package merges two dedicated channels into the host application's logging
-config: `waha` (request/response lifecycle) and `wahaError` (failures). Override
-them in your own `config/logging.php` if you want different drivers, paths, or
-levels.
-
-## Architecture
-
-```
-src/
-├── Concerns/              SendsWahaRequests — shared HTTP plumbing for services
-├── Contracts/             WahaClientInterface, HostRegistry, ApiKeyProvider, SessionRouter, PinStore, resource contracts
-├── Data/
-│   ├── Input/             Request DTOs (serialized to WAHA payloads)
-│   ├── Output/            Response/event DTOs (built from WAHA payloads)
-│   ├── AppData.php        Built-in app definition (typed per-app config)
-│   ├── WahaHostConfigData.php Host definition value object
-│   └── WahaData.php       Base DTO with fromArray()/fromJson()/toArray()/toJson()
-├── Debug/                 WahaDebugStore — lastHttp / lastHttpCurl capture
-├── Enums/                 Backed string enums for statuses, sort fields, events…
-├── Exception/             Domain-specific exception hierarchy
-├── Fluent/                WahaChat, WahaMessage, WahaManager (ergonomic entry point)
-├── Http/                  WahaRequest — HTTP client (JSON + binary + retries)
-├── Models/                WahaHost, WahaSessionPin
-├── Pin/                   DbPinStore — session → host persistence
-├── Registry/              ConfigHostRegistry, DbHostRegistry
-├── Routing/               NullRouter, PinningRouter
-├── Security/              ConfigApiKeyProvider
-├── Services/              One class per WAHA API area
-├── Support/               WahaSession value object
-├── Webhooks/              Verification, route, dispatch, handlers, events, models
-└── WahaServiceProvider.php Config merge, migrations, bindings
-config/
-├── waha.php               Main configuration
-└── logging.php            waha / wahaError channel defaults
-database/migrations/       waha_hosts, waha_session_pins, waha_webhook_events
-tests/                     PHPUnit suite
-```
-
-### Request layer
-
-`WahaRequest` (bound to `WahaClientInterface` by `WahaServiceProvider`) is the
-only place that talks HTTP. It:
-
-- builds the Laravel HTTP client with the configured base URL and `X-Api-Key`;
-- retries transient HTTP failures (`429`, `5xx`) and connection errors for
-  **idempotent methods only**, with exponential backoff plus jitter — non-idempotent
-  writes are never retried, to avoid duplicate messages;
-- sends JSON requests and decodes the response;
-- downloads binary responses (QR images, screenshots, CPU profiles, media) and
-  negotiates the binary representation via the `Accept` header;
-- translates HTTP failures into typed exceptions.
-
-`SendsWahaRequests` is the trait consumed by every service. It injects
-`WahaClientInterface` through the constructor (so services are container-resolvable
-and can be unit-tested with a fake client) and provides `send()` and `download()`
-helpers that normalize failures into domain exceptions.
-
-### Services
-
-Services map 1:1 to WAHA API areas and follow a consistent naming convention:
-`list*`, `get*`, `create*`, `update*`, `delete*`, `send*`, `set*`.
-
-```php
-use DenLopes\Waha\Services\ChattingService;
-
-$chatting = app(ChattingService::class);
-
-$message = $chatting->sendText('5511999999999@c.us', 'Hello from Laravel');
-```
-
 ## Quick start
 
+The facade is the fastest entry point:
+
 ```php
-use DenLopes\Waha\Services\ChattingService;
-use DenLopes\Waha\Services\SessionService;
-use DenLopes\Waha\Data\Input\SessionCreateRequestData;
-use DenLopes\Waha\Data\Input\RemoteFileData;
+use Waha;
 
-$sessions = app(SessionService::class);
-$chatting = app(ChattingService::class);
+$chat = Waha::chat('5511999999999@c.us');
 
-// Create (and start) a session.
-$session = $sessions->createSession(new SessionCreateRequestData(name: 'default'));
-
-// Send text.
-$chatting->sendText(
-    chatId: '5511999999999@c.us',
-    text: 'Hello!',
-);
-
-// Send an image by URL.
-$chatting->sendImage(
-    chatId: '5511999999999@c.us',
-    file: new RemoteFileData(mimetype: 'image/jpeg', url: 'https://example.com/pic.jpg'),
-);
+$message = $chat->sendMessage('Hello from Laravel');
 ```
 
-## Fluent
+If you prefer constructor injection, `app(\DenLopes\Waha\Client::class)` is the
+class the facade resolves to.
 
-On top of the services there are two small, fluent resource classes for the most
-common chat/message flows. They keep the session and ID state, and receive the
-services they need via constructor injection. In practice, resolve them through
-the container-backed `WahaManager` instead of constructing them directly:
+## Resources
+
+Three fluent resource handles — `Chat`, `Message`, and `Conversation` — cover the
+common chat and message flows. They carry their session and ID so you don't repeat
+them on every call.
+
+### Chat
 
 ```php
-use DenLopes\Waha\Data\Input\RemoteFileData;
-use DenLopes\Waha\Fluent\WahaManager;
+use DenLopes\Waha\Data\Input\RemoteFile;
+use Waha;
 
-$waha = app(WahaManager::class);
-$chat = $waha->chat('5511999999999@c.us');
+$chat = Waha::chat('5511999999999@c.us', 'sales'); // session name or Session object
 
 $message = $chat->sendMessage('Hello from Laravel');
 
-// Every send* returns a message handle, so message actions chain directly.
-$chat->sendImage(new RemoteFileData('image/jpeg', 'https://example.com/pic.jpg'))
+// Every send* returns a Message, so message actions chain directly.
+$chat->sendImage(new RemoteFile(mimetype: 'image/jpeg', url: 'https://example.com/pic.jpg'))
     ->react('🔥');
+```
 
-$existing = $chat->message($message->id()); // lazy handle, no I/O
+Lookups:
+
+```php
+$chat->message($message->id());      // lazy handle, no I/O until get()
+$chat->find($message->id());         // eager fetch
+$chat->getMessages(limit: 50);       // list, as Message objects
+```
+
+Send methods — `sendMessage`, `sendImage`, `sendFile`, `sendVoice`, `sendVideo`,
+`sendPoll`, `sendLocation`, `sendContactVcard`, `sendList`,
+`sendLinkCustomPreview`, and `forward` — each return a `Message`.
+
+State-changing actions return `$this` for chaining: `startTyping()`,
+`stopTyping()`, `react()`, `star()`, `markRead()`, `pinMessage()`,
+`unpinMessage()`, `archive()`, `unarchive()`, `markUnread()`, `clearMessages()`,
+and `delete()`.
+
+### Message
+
+A `Message` is returned by every `send*` method and by `message()` / `find()`:
+
+```php
+$existing = $chat->message($message->id());
 
 $existing
-    ->read()
+    ->markRead()
     ->pin()
     ->update('Updated text')
     ->delete();
 ```
 
-`WahaChat` exposes fluent chat-level actions: `sendMessage`, `sendImage`,
-`sendFile`, `sendVoice`, `sendVideo`, `sendPoll`, `sendLocation`,
-`sendContactVcard`, `sendList`, `sendLinkCustomPreview`, and `forwardMessage`
-(all of which return a `WahaMessage`), plus `startTyping`, `stopTyping`,
-`setReaction`, `setStar`, `sendSeen`, `pinMessage`, `unpinMessage`, `archive`,
-`unarchive`, `markUnread`, `clearMessages`, and `delete` (which return `$this`
-for chaining), and the `message`, `getMessage`, and `getMessages` lookups.
+`Message` exposes `get()` (the raw `MessageData`), `refresh()`, `markRead()`,
+`react()`, `star()`, `pin()`, `unpin()`, `update()`, `forward()`, `delete()`, and
+`toArray()` / `toJson()`.
 
-`WahaMessage` exposes message-level actions: `get`, `refresh`, `read`, `react`,
-`star`, `pin`, `unpin`, `update`, `forward`, `delete`, and the serialization
-escapes `toArray()`/`toJson()`.
+### Conversations (anti-ban)
 
-To fetch an existing message eagerly:
+`Conversation` wraps a `Chat` and sends messages the way WAHA recommends to avoid
+being flagged as spam:
 
 ```php
-$message = $chat->getMessage('false_5511999999999@c.us_XXXXXXXX');
+use Waha;
+
+$conversation = Waha::conversation('5511999999999@c.us');
+
+// markRead → startTyping → random typing delay → stopTyping → sendText
+$message = $conversation->send('Hello from Laravel');
+
+// Reply to an inbound message with the same flow.
+$reply = $conversation->reply('Thanks for reaching out!', $incomingMessageId);
 ```
 
-### Manager
-
-`WahaManager` is a container-resolvable entry point that returns resource
-handles without performing any network I/O:
+Or build one from an existing chat and drive the lower-level steps yourself:
 
 ```php
-use DenLopes\Waha\Fluent\WahaManager;
-use DenLopes\Waha\Support\WahaSession;
+$conversation = $chat->conversation();
 
-$waha = app(WahaManager::class);
+$conversation
+    ->markRead()
+    ->startTyping()
+    ->wait(800)
+    ->stopTyping();
 
-$chat = $waha->chat('5511999999999@c.us');
-$chat = $waha->chat('5511999999999@c.us', 'sales'); // name or value object
-$chat = $waha->chat('5511999999999@c.us', WahaSession::from('sales'));
-
-$message = $waha->message('5511999999999@c.us', 'false_...@c.us_...');
-$session = $waha->session(); // configured default
-$session = $waha->session('sales'); // named session
-
-// Debug the last request.
-$waha->lastHttp();     // masked request/response array
-$waha->lastHttpCurl(); // copy-pasteable curl command
-
-// Session routing (requires WAHA_ROUTING_DRIVER=pin).
-$waha->pinSession('company-123', 'company-host');
-$waha->sessionHost('company-123'); // 'company-host'
-$waha->unpinSession('company-123');
+$conversation->reset(); // clear pacing state, e.g. when a human takes over
 ```
 
-### Contracts
+The behavior is driven by the `waha.conversations` config block and represented
+by the `DenLopes\Waha\Support\Pacing` value object. It simulates word-by-word
+typing with an occasional pause, spaces out consecutive messages with a random
+cooldown, and enforces an optional per-window message cap. When the cap is hit it
+throws `ConversationThrottledException` instead of hammering the contact — catch
+it and schedule a retry or pause the outreach.
 
-`WahaChatContract` and `WahaMessageContract` in `src/Contracts` define the
-resource API for type-hinting and mocking. The concrete `WahaChat` and
-`WahaMessage` (in `src/Fluent`) implement them.
+```php
+use DenLopes\Waha\Support\Pacing;
+
+Pacing::fromConfig(); // reads waha.conversations
+Pacing::off();        // no humanization, no pacing (useful in tests)
+```
+
+Pacing state lives on the conversation instance. Create one conversation per
+contact flow and reuse it for the lifetime of that flow; for cross-process
+throttling, combine it with Laravel's queue or rate limiter.
 
 ## Sessions
 
-A session name is wrapped in the `WahaSession` value object to give it nominal
-typing (a session can no longer be confused with a chat ID or message ID).
+A session name is wrapped in a `Session` value object so it can't be confused
+with a chat ID, message ID, or phone number.
 
 ```php
-use DenLopes\Waha\Support\WahaSession;
+use DenLopes\Waha\Session;
 
-$session = WahaSession::from('default');
-$session = WahaSession::default(); // uses waha.default_session
+$session = Session::from('default');
+$session = Session::default(); // uses waha.default_session
 
-$session->value();   // string
-(string) $session;   // string
+$session->value(); // string
+(string) $session; // string
 ```
 
-Most service methods accept `?WahaSession $session = null` and fall back to the
-configured default session when omitted.
+Most service methods accept `?Session $session = null` and fall back to the
+configured default when omitted.
+
+## Services
+
+Below the fluent layer, each WAHA API area has its own injectable service.
+Services follow a consistent naming convention: `list*`, `get*`, `create*`,
+`update*`, `delete*`, `send*`, `set*`.
+
+```php
+use DenLopes\Waha\Services\MessagingService;
+
+$messaging = app(MessagingService::class);
+
+$message = $messaging->sendText(
+    chatId: '5511999999999@c.us',
+    text: 'Hello!',
+);
+```
+
+The full service list is in [Coverage](#coverage).
 
 ## DTOs
 
-- **Request DTOs** live in `src/Data/Input` and extend `WahaData`. They are
-  constructed with named arguments and serialized with `toArray()`/`toJson()`.
-- **Response/event DTOs** live in `src/Data/Output` and are built from API
-  arrays with `fromArray()` (or from JSON with `fromJson()`).
+- **Request DTOs** live in `src/Data/Input` and extend `Data`. Construct them with
+  named arguments and serialize them with `toArray()` / `toJson()`.
+- **Response and event DTOs** live in `src/Data/Output` and are built from API
+  arrays with `fromArray()` (or `fromJson()`).
 
-The `WahaData` serializer walks public constructor-promoted properties, skips
-`null` values (WAHA treats an omitted key as "leave unchanged"), and recursively
-serializes nested DTOs, backed enums and arrays. The base class also provides
-safe extraction helpers (`string()`, `arrayValue()`, `intValue()`, `boolValue()`)
-used by `fromArray()` mappers to degrade gracefully on unexpected payload shapes.
+The `Data` serializer walks public constructor-promoted properties, skips `null`
+values (WAHA treats an omitted key as "leave unchanged"), and recursively
+serializes nested DTOs, backed enums, and arrays. It also provides safe extraction
+helpers — `string()`, `arrayValue()`, `intValue()`, `boolValue()` — used by
+`fromArray()` mappers to degrade gracefully on unexpected payloads.
 
 ```php
-use DenLopes\Waha\Data\Input\ApiKeyRequestData;
-use DenLopes\Waha\Data\SessionActionsData;
+use DenLopes\Waha\Data\Input\ApiKeyRequest;
+use DenLopes\Waha\Data\SessionActions;
 
-$request = new ApiKeyRequestData(
+$request = new ApiKeyRequest(
     isAdmin: false,
     session: 'default',
     isActive: true,
-    actions: new SessionActionsData(
+    actions: new SessionActions(
         read: true,
         send: true,
         control: false,
@@ -373,46 +257,99 @@ $request = new ApiKeyRequestData(
 $request->toArray();
 ```
 
-## Errors
+## Configuration
 
-Every failure is thrown as a subclass of `DenLopes\Waha\Exception\WahaException`, so
-callers can catch the base type for "any WAHA problem" or a specific subtype for
-targeted handling. API/HTTP failures share `WahaApiException` as their base.
+All settings come from `config/waha.php` and the environment, read through
+Laravel's `config()` helper.
 
-| Exception                     | HTTP trigger                                   |
-| ----------------------------- | ---------------------------------------------- |
-| `WahaApiException`            | Base for API/HTTP errors                       |
-| `WahaAuthenticationException` | `401`/`403`                                    |
-| `WahaCredentialsException`    | Missing/invalid API key (extends `WahaAuthenticationException`) |
-| `WahaSessionNotFoundException` | `404` on a session-scoped endpoint           |
-| `NoDataException`             | `404` on a non-session resource                |
-| `WahaRateLimitException`      | `429`                                          |
-| `WahaRequestException`        | `400`/`422`                                    |
-| `WahaServerException`         | `5xx`                                          |
-| `WahaConnectionException`     | Connection failure / timeout                   |
-| `WahaIntegrationException`    | JSON decode failures and unclassified failures |
-| `WahaNotImplementedException` | `501` endpoint not implemented by the engine   |
-| `UnknownHostException`        | Requested host is not configured               |
-| `WahaWebhookException`        | Webhook verification / dispatch failure        |
+| Config key             | Env var                 | Default                 | Description                                   |
+| ---------------------- | ----------------------- | ----------------------- | --------------------------------------------- |
+| `waha.base_url`        | `WAHA_BASE_URL`         | `http://localhost:3000` | Base URL of the WAHA server.                  |
+| `waha.api_key`         | `WAHA_API_KEY`          | _(none)_                | Secret sent via the `X-Api-Key` header.       |
+| `waha.default_session` | `WAHA_DEFAULT_SESSION`  | `default`               | Session used when none is given explicitly.   |
+| `waha.timeout`         | `WAHA_TIMEOUT`          | `30`                    | HTTP request timeout, in seconds.             |
+| `waha.connect_timeout` | `WAHA_CONNECT_TIMEOUT`  | `5`                     | TCP connection timeout, in seconds.           |
+| `waha.retry_attempts`  | `WAHA_RETRY_ATTEMPTS`   | `3`                     | Retries for transient failures and connection errors on idempotent methods. |
+| `waha.retry_delay_ms`  | `WAHA_RETRY_DELAY_MS`   | `200`                   | Initial retry backoff in ms (exponential, with jitter). |
 
-Each exception carries a structured `context()` array (HTTP method, endpoint,
-status and response body snippet) for logging and diagnostics.
+```dotenv
+WAHA_BASE_URL=http://localhost:3000
+WAHA_API_KEY=your-secret-key
+WAHA_DEFAULT_SESSION=default
+WAHA_TIMEOUT=30
+WAHA_CONNECT_TIMEOUT=5
+WAHA_RETRY_ATTEMPTS=3
+WAHA_RETRY_DELAY_MS=200
+```
+
+Multi-host and webhook settings live in their own sections below.
+
+## Multi-host
+
+Define `waha.hosts` to talk to more than one WAHA server. When empty, the
+single-host keys above are used as the `primary` host.
 
 ```php
-try {
-    $chatting->sendText('5511999999999@c.us', 'Hello');
-} catch (\DenLopes\Waha\Exception\WahaRateLimitException $e) {
-    // back off and retry later
-} catch (\DenLopes\Waha\Exception\WahaException $e) {
-    report($e);
-}
+// config/waha.php
+'default_host' => env('WAHA_DEFAULT_HOST', 'primary'),
+
+'hosts' => [
+    'primary' => [
+        'base_url'        => env('WAHA_PRIMARY_URL'),
+        'api_key'         => env('WAHA_PRIMARY_API_KEY'),
+        'api_key_header'  => env('WAHA_API_KEY_HEADER', 'X-Api-Key'),
+        'default_session' => env('WAHA_PRIMARY_DEFAULT_SESSION', 'default'),
+        'mode'            => env('WAHA_PRIMARY_MODE', 'admin_fallback'),
+        'session_keys'    => [],
+    ],
+    'secondary' => [
+        'base_url' => env('WAHA_SECONDARY_URL'),
+        'api_key'  => env('WAHA_SECONDARY_API_KEY'),
+    ],
+],
 ```
+
+Host selection is abstracted behind `HostRegistry`, `ApiKeyProvider`, and
+`SessionRouter` contracts. Hosts are normalized into an immutable `HostConfig`
+value object, and the `mode` string is represented by the `ApiKeyMode` enum
+(`ADMIN_FALLBACK` / `STRICT_SESSION_KEY`).
+
+### DB-backed hosts
+
+Set `WAHA_REGISTRY_DRIVER=db` to read hosts from the `waha_hosts` table instead of
+config. Run `php artisan migrate`, then seed the table. Each host is keyed by a
+unique `key` and can define per-session API keys.
+
+### Session → host pinning
+
+Set `WAHA_ROUTING_DRIVER=pin` to resolve the host from the `waha_session_pins`
+table (session name → host key), falling back to `default_host` when unknown.
+
+```php
+use DenLopes\Waha\Contracts\PinStore;
+
+$pins = app(PinStore::class);
+
+$pins->pin('company-123', 'company-host');
+$pins->getHostForSession('company-123'); // 'company-host'
+$pins->forget('company-123');
+```
+
+This is how each tenant gets its own WhatsApp number — and, as it grows, its own
+WAHA host — without hardcoding that mapping in the SDK.
+
+## Logging
+
+The package merges two dedicated channels into the host application's logging
+config: `waha` (request/response lifecycle) and `wahaError` (failures). Override
+them in your own `config/logging.php` if you want different drivers, paths, or
+levels.
 
 ## Webhooks
 
 When enabled (the default), the service provider registers a stateless route for
 inbound WAHA deliveries. It verifies the request, parses it into a typed
-`WebhookData`, then dispatches it.
+`Webhook`, then dispatches it.
 
 ### Route
 
@@ -439,8 +376,8 @@ Set `WAHA_WEBHOOKS_REQUIRE_HMAC=false` to accept unauthenticated deliveries
 
 Two extension points:
 
-- **Laravel event** — `DenLopes\Waha\Webhooks\Events\WahaWebhookReceived` is always
-  fired and carries the parsed `WebhookData` plus the raw body and request ID.
+- **Laravel event** — `DenLopes\Waha\Webhooks\Events\WebhookReceived` is always
+  fired and carries the parsed `Webhook` plus the raw body and request ID.
 - **Configured handlers** — map WAHA event names to handler classes:
 
 ```php
@@ -453,25 +390,123 @@ Two extension points:
 ],
 ```
 
-Handlers implement `DenLopes\Waha\Webhooks\Contracts\WahaWebhookHandler`.
+Handlers implement `DenLopes\Waha\Webhooks\Contracts\WebhookHandler`.
 
 ### Processing mode
 
 - `sync` (default) — runs handlers inline during the HTTP request.
-- `queue` — dispatches `ProcessWahaWebhookJob` and returns immediately
+- `queue` — dispatches `ProcessWebhookJob` and returns immediately
   (`WAHA_WEBHOOKS_PROCESSING_MODE=queue`).
 
 ### Parsing
 
-`WebhookData::fromArray()` maps `payload` to the most specific DTO for the event
-(e.g. `WAMessageData` for `message`). Unrecognized events keep their raw array.
+`Webhook::fromArray()` maps `payload` to the most specific DTO for the event
+(e.g. `MessageData` for `message`). Unrecognized events keep their raw array.
 
 ### Storage
 
 Set `WAHA_WEBHOOKS_STORE_ENABLED=true` to persist verified deliveries to the
-`waha_webhook_events` table (id, event, session, request_id, host_key, payload).
-Run the package migrations with `php artisan migrate`; the migration is also
-publishable via `php artisan vendor:publish --tag="waha-migrations"`.
+`waha_webhook_events` table.
+
+## Errors
+
+Every failure is thrown as a subclass of `DenLopes\Waha\Exceptions\WahaException`,
+so you can catch the base type for "any WAHA problem" or a specific subtype for
+targeted handling. API/HTTP failures share `ApiException` as their base.
+
+| Exception              | Trigger                                          |
+| ---------------------- | ------------------------------------------------ |
+| `ApiException`         | Base for API/HTTP errors                         |
+| `AuthenticationException` | `401`/`403`                                   |
+| `CredentialsException` | Missing/invalid API key (extends `AuthenticationException`) |
+| `SessionNotFoundException` | `404` on a session-scoped endpoint          |
+| `NoDataException`      | `404` on a non-session resource                  |
+| `RateLimitException`   | `429`                                            |
+| `RequestException`     | `400`/`422`                                      |
+| `ServerException`      | `5xx`                                            |
+| `ConnectionException`  | Connection failure or timeout                    |
+| `IntegrationException` | JSON decode failures and unclassified failures   |
+| `NotImplementedException` | `501` endpoint not implemented by the engine  |
+| `UnknownHostException` | Requested host is not configured                 |
+| `WebhookException`     | Webhook verification or dispatch failure         |
+
+Each exception carries a structured `context()` array (HTTP method, endpoint,
+status, and a response body snippet) for logging and diagnostics.
+
+```php
+try {
+    $messaging->sendText('5511999999999@c.us', 'Hello');
+} catch (\DenLopes\Waha\Exceptions\RateLimitException $e) {
+    // back off and retry later
+} catch (\DenLopes\Waha\Exceptions\WahaException $e) {
+    report($e);
+}
+```
+
+## Architecture
+
+```
+src/
+├── Concerns/              SendsRequests — shared HTTP plumbing for services
+├── Contracts/             HttpClient, HostRegistry, ApiKeyProvider, SessionRouter, PinStore, Chat, Message, Conversation
+├── Data/
+│   ├── Input/             Request DTOs (serialized to WAHA payloads)
+│   ├── Output/            Response/event DTOs (built from WAHA payloads)
+│   ├── App.php            Built-in app definition (typed per-app config)
+│   ├── HostConfig.php     Host definition value object
+│   └── Data.php           Base DTO with fromArray()/fromJson()/toArray()/toJson()
+├── Debug/                 DebugStore — last() / lastCurl() capture
+├── Enums/                 Backed string enums for statuses, sort fields, events…
+├── Exceptions/            Domain-specific exception hierarchy
+├── Facades/               Waha — static facade for the SDK
+├── Http/                  HttpClient — HTTP client (JSON + binary + retries)
+├── Models/                Host, SessionPin
+├── Pin/                   DbPinStore — session → host persistence
+├── Registry/              ConfigHostRegistry, DbHostRegistry
+├── Resources/             Chat, Message, Conversation (fluent handles)
+├── Routing/               NullRouter, PinningRouter
+├── Security/              ConfigApiKeyProvider
+├── Services/              One class per WAHA API area
+├── Support/               Pacing
+├── Webhooks/              Verification, route, dispatch, handlers, events, models
+├── Client.php             Container entry point (resource factory)
+├── Session.php            Session name value object
+└── WahaServiceProvider.php Config merge, migrations, bindings
+
+config/
+├── waha.php               Main configuration
+└── logging.php            waha / wahaError channel defaults
+
+database/migrations/       waha_hosts, waha_session_pins, waha_webhook_events
+tests/                     PHPUnit suite
+```
+
+### Request layer
+
+`DenLopes\Waha\Http\HttpClient` (bound to `DenLopes\Waha\Contracts\HttpClient`)
+is the only place that talks HTTP. It:
+
+- builds the Laravel HTTP client with the configured base URL and `X-Api-Key`;
+- retries transient HTTP failures (`429`, `5xx`) and connection errors for
+  **idempotent methods only**, with exponential backoff plus jitter — writes are
+  never retried, to avoid duplicate messages;
+- sends JSON requests and decodes the response;
+- downloads binary responses (QR images, screenshots, media) and negotiates the
+  binary representation via the `Accept` header;
+- translates HTTP failures into typed exceptions.
+
+`SendsRequests` is the trait consumed by every service. It injects the HTTP
+client through the constructor and provides `send()` and `download()` helpers
+that normalize failures into domain exceptions.
+
+The HTTP client records its last request and response in `DebugStore`, which is
+useful for troubleshooting:
+
+```php
+$debug = app(\DenLopes\Waha\Debug\DebugStore::class);
+$debug->last();     // last masked request/response
+$debug->lastCurl(); // last request as a copy-pasteable curl command
+```
 
 ## Coverage
 
@@ -482,11 +517,11 @@ The service layer covers every area exposed by the WAHA OpenAPI document:
 | `SessionService`     | Session lifecycle and info            |
 | `PairingService`     | QR, code, passkey pairing, screenshots |
 | `ProfileService`     | Profile name/status/picture           |
-| `ChattingService`    | Sending messages and reactions        |
+| `MessagingService`   | Sending messages and reactions        |
 | `ChatsService`       | Chats, messages, pinning, archiving   |
 | `GroupsService`      | Group management and settings         |
 | `ContactsService`    | Contacts and number checks            |
-| `LidsService`        | LID <-> phone number mappings         |
+| `LidsService`        | LID ↔ phone number mappings           |
 | `LabelsService`      | Labels (WhatsApp Business)            |
 | `ChannelsService`    | Channels/newsletters                  |
 | `StatusService`      | Status (stories)                      |
@@ -496,23 +531,20 @@ The service layer covers every area exposed by the WAHA OpenAPI document:
 | `MediaService`       | Media conversion                      |
 | `ApiKeysService`     | API key management                    |
 | `AppsService`        | Built-in apps and the MCP endpoint    |
-| `ObservabilityService` | Ping, health, server, debugging      |
+| `ObservabilityService` | Ping, health, server, debugging     |
 
 ## Testing
 
-When the package is developed inside a host application via a symlink (see
-[Local development](#local-development)), run its test suite from the host root:
+The package uses Orchestra Testbench, so the suite runs standalone — no host
+Laravel application required.
 
 ```bash
-vendor/bin/phpunit -c packages/denlopes/waha-laravel-sdk/phpunit.xml.dist --bootstrap vendor/autoload.php
-vendor/bin/pint packages/denlopes/waha-laravel-sdk
-```
-
-When the package is checked out as a standalone project, the `composer.json`
-scripts are equivalent:
-
-```bash
+composer install
 composer test        # vendor/bin/phpunit
 composer pint        # vendor/bin/pint
 composer pint:test   # vendor/bin/pint --test
 ```
+
+`WahaTestCase` extends `Orchestra\Testbench\TestCase` and registers
+`WahaServiceProvider` via `getPackageProviders()`, so Laravel-booted tests run
+against an in-memory application.

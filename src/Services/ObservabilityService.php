@@ -4,25 +4,25 @@ declare(strict_types=1);
 
 namespace DenLopes\Waha\Services;
 
-use DenLopes\Waha\Concerns\SendsWahaRequests;
-use DenLopes\Waha\Data\Input\StopRequestData;
-use DenLopes\Waha\Data\Output\HealthData;
-use DenLopes\Waha\Data\Output\PingData;
-use DenLopes\Waha\Data\Output\ServerStatusData;
-use DenLopes\Waha\Data\Output\StopResponseData;
-use DenLopes\Waha\Data\Output\WahaEnvironmentData;
-use DenLopes\Waha\Support\WahaSession;
+use DenLopes\Waha\Concerns\SendsRequests;
+use DenLopes\Waha\Data\Input\StopRequest;
+use DenLopes\Waha\Data\Output\Environment;
+use DenLopes\Waha\Data\Output\Health;
+use DenLopes\Waha\Data\Output\Ping;
+use DenLopes\Waha\Data\Output\ServerStatus;
+use DenLopes\Waha\Data\Output\StopResponse;
+use DenLopes\Waha\Session;
 
 class ObservabilityService
 {
-    use SendsWahaRequests;
+    use SendsRequests;
 
     /**
      * Ping the server.
      *
      * The /ping endpoint is public, so it does not require an API key.
      */
-    public function ping(): PingData
+    public function ping(): Ping
     {
         $data = $this->send(
             'get',
@@ -32,37 +32,37 @@ class ObservabilityService
             authenticated: false,
         );
 
-        return PingData::fromArray($data);
+        return Ping::fromArray($data);
     }
 
     /**
      * Check the server health.
      */
-    public function getHealth(): HealthData
+    public function getHealth(): Health
     {
         $data = $this->send('get', '/health', [], 'Communication with WAHA failed while checking the server health.');
 
-        return HealthData::fromArray($data);
+        return Health::fromArray($data);
     }
 
     /**
      * Get the server version.
      */
-    public function getVersion(): WahaEnvironmentData
+    public function getVersion(): Environment
     {
         $data = $this->send('get', '/api/server/version', [], 'Communication with WAHA failed while fetching the server version.');
 
-        return WahaEnvironmentData::fromArray($data);
+        return Environment::fromArray($data);
     }
 
     /**
      * Get the server version via the deprecated endpoint.
      */
-    public function getVersionDeprecated(): WahaEnvironmentData
+    public function getVersionDeprecated(): Environment
     {
         $data = $this->send('get', '/api/version', [], 'Communication with WAHA failed while fetching the server version.');
 
-        return WahaEnvironmentData::fromArray($data);
+        return Environment::fromArray($data);
     }
 
     /**
@@ -78,21 +78,21 @@ class ObservabilityService
     /**
      * Get the server status.
      */
-    public function getServerStatus(): ServerStatusData
+    public function getServerStatus(): ServerStatus
     {
         $data = $this->send('get', '/api/server/status', [], 'Communication with WAHA failed while fetching the server status.');
 
-        return ServerStatusData::fromArray($data);
+        return ServerStatus::fromArray($data);
     }
 
     /**
      * Stop (and restart) the server.
      */
-    public function stopServer(StopRequestData $request): StopResponseData
+    public function stopServer(StopRequest $request): StopResponse
     {
         $data = $this->send('post', '/api/server/stop', $request->toArray(), 'Communication with WAHA failed while stopping the server.');
 
-        return StopResponseData::fromArray($data);
+        return StopResponse::fromArray($data);
     }
 
     /**
@@ -118,7 +118,7 @@ class ObservabilityService
      *
      * @param  string[]  $categories
      */
-    public function getBrowserTrace(WahaSession $session, int $seconds = 30, array $categories = ['*']): string
+    public function getBrowserTrace(Session $session, int $seconds = 30, array $categories = ['*']): string
     {
         return $this->download('/api/server/debug/browser/trace/{session}', [
             'seconds'    => $seconds,

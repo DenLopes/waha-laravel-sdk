@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace DenLopes\Waha\Pin;
 
 use DenLopes\Waha\Contracts\PinStore;
-use DenLopes\Waha\Fluent\WahaManager;
-use DenLopes\Waha\Models\WahaSessionPin;
+use DenLopes\Waha\Models\SessionPin;
+use DenLopes\Waha\Routing\PinningRouter;
 
 /**
  * Database-backed {@see PinStore}.
@@ -18,18 +18,18 @@ use DenLopes\Waha\Models\WahaSessionPin;
  * about companies, tenants, or events.
  *
  * The mapping is only consulted when `waha.routing.driver` is set to `pin`.
- * Write it through {@see WahaManager::pinSession()} (or
- * resolve {@see PinStore} from the container), then read it implicitly on every
- * normal SDK call:
+ * Write it through {@see PinStore} (resolve it from the container), then read
+ * it implicitly on every normal SDK call:
  *
- *     $waha->pinSession('company-123', 'company-host');
- *     $waha->chat('5511...@c.us', 'company-123')->sendMessage('Hello');
+ *     $pins = app(\DenLopes\Waha\Contracts\PinStore::class);
+ *     $pins->pin('company-123', 'company-host');
+ *     $pins->forget('company-123');
  */
 final class DbPinStore implements PinStore
 {
     public function getHostForSession(string $sessionName): ?string
     {
-        $pin = WahaSessionPin::query()->where('session_name', $sessionName)->first();
+        $pin = SessionPin::query()->where('session_name', $sessionName)->first();
 
         if ($pin === null) {
             return null;
@@ -57,7 +57,7 @@ final class DbPinStore implements PinStore
             $attributes['expires_at'] = null;
         }
 
-        WahaSessionPin::query()->updateOrCreate(
+        SessionPin::query()->updateOrCreate(
             ['session_name' => $sessionName],
             $attributes,
         );
@@ -65,6 +65,6 @@ final class DbPinStore implements PinStore
 
     public function forget(string $sessionName): void
     {
-        WahaSessionPin::query()->where('session_name', $sessionName)->delete();
+        SessionPin::query()->where('session_name', $sessionName)->delete();
     }
 }

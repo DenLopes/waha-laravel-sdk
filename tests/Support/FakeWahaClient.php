@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace DenLopes\Waha\Tests\Support;
 
-use DenLopes\Waha\Contracts\WahaClientInterface;
+use DenLopes\Waha\Contracts\HttpClient;
 
 /**
- * In-memory WahaClientInterface double for service tests.
+ * In-memory HttpClient double for service tests.
  *
  * It records every request and returns canned JSON/binary responses, so service
  * tests can assert payload/endpoint construction and typed DTO mapping without
  * booting the Laravel HTTP layer.
  */
-final class FakeWahaClient implements WahaClientInterface
+final class FakeWahaClient implements HttpClient
 {
     /**
      * @var array<int, array{method:string,endpoint:string,payload:array,query:array,authenticated:bool,session:string|null}>

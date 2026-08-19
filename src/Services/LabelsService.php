@@ -4,28 +4,28 @@ declare(strict_types=1);
 
 namespace DenLopes\Waha\Services;
 
-use DenLopes\Waha\Concerns\SendsWahaRequests;
-use DenLopes\Waha\Data\Input\LabelBodyData;
-use DenLopes\Waha\Data\Input\SetLabelsRequestData;
+use DenLopes\Waha\Concerns\SendsRequests;
+use DenLopes\Waha\Data\Input\LabelBody;
+use DenLopes\Waha\Data\Input\SetLabelsRequest;
 use DenLopes\Waha\Data\Output\ChatData;
-use DenLopes\Waha\Data\Output\LabelData;
-use DenLopes\Waha\Support\WahaSession;
+use DenLopes\Waha\Data\Output\Label;
+use DenLopes\Waha\Session;
 
 class LabelsService
 {
-    use SendsWahaRequests;
+    use SendsRequests;
 
     /**
      * Get all labels.
      *
-     * @return LabelData[]
+     * @return Label[]
      */
-    public function getLabels(WahaSession $session): array
+    public function getLabels(Session $session): array
     {
         $data = $this->send('get', '/api/{session}/labels', [], 'Communication with WAHA failed while fetching labels.', session: $session);
 
         return array_map(
-            static fn (array $item) => LabelData::fromArray($item),
+            static fn (array $item) => Label::fromArray($item),
             $data,
         );
     }
@@ -33,27 +33,27 @@ class LabelsService
     /**
      * Create a label.
      */
-    public function createLabel(WahaSession $session, LabelBodyData $body): LabelData
+    public function createLabel(Session $session, LabelBody $body): Label
     {
         $data = $this->send('post', '/api/{session}/labels', $body->toArray(), 'Communication with WAHA failed while creating the label.', session: $session);
 
-        return LabelData::fromArray($data);
+        return Label::fromArray($data);
     }
 
     /**
      * Update a label.
      */
-    public function updateLabel(WahaSession $session, string $labelId, LabelBodyData $body): LabelData
+    public function updateLabel(Session $session, string $labelId, LabelBody $body): Label
     {
         $data = $this->send('put', "/api/{session}/labels/{$labelId}", $body->toArray(), 'Communication with WAHA failed while updating the label.', session: $session);
 
-        return LabelData::fromArray($data);
+        return Label::fromArray($data);
     }
 
     /**
      * Delete a label.
      */
-    public function deleteLabel(WahaSession $session, string $labelId): array
+    public function deleteLabel(Session $session, string $labelId): array
     {
         return $this->send('delete', "/api/{session}/labels/{$labelId}", [], 'Communication with WAHA failed while deleting the label.', session: $session);
     }
@@ -61,14 +61,14 @@ class LabelsService
     /**
      * Get labels for a chat.
      *
-     * @return LabelData[]
+     * @return Label[]
      */
-    public function getChatLabels(WahaSession $session, string $chatId): array
+    public function getChatLabels(Session $session, string $chatId): array
     {
         $data = $this->send('get', "/api/{session}/labels/chats/{$chatId}", [], 'Communication with WAHA failed while fetching the chat labels.', session: $session);
 
         return array_map(
-            static fn (array $item) => LabelData::fromArray($item),
+            static fn (array $item) => Label::fromArray($item),
             $data,
         );
     }
@@ -76,7 +76,7 @@ class LabelsService
     /**
      * Save labels for a chat.
      */
-    public function setChatLabels(WahaSession $session, string $chatId, SetLabelsRequestData $labels): array
+    public function setChatLabels(Session $session, string $chatId, SetLabelsRequest $labels): array
     {
         return $this->send('put', "/api/{session}/labels/chats/{$chatId}", $labels->toArray(), 'Communication with WAHA failed while setting the chat labels.', session: $session);
     }
@@ -86,7 +86,7 @@ class LabelsService
      *
      * @return ChatData[]
      */
-    public function getChatsByLabel(WahaSession $session, string $labelId): array
+    public function getChatsByLabel(Session $session, string $labelId): array
     {
         $data = $this->send('get', "/api/{session}/labels/{$labelId}/chats", [], 'Communication with WAHA failed while fetching the chats by label.', session: $session);
 

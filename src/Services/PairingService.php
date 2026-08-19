@@ -4,37 +4,37 @@ declare(strict_types=1);
 
 namespace DenLopes\Waha\Services;
 
-use DenLopes\Waha\Concerns\SendsWahaRequests;
-use DenLopes\Waha\Data\Input\PasskeyAssertionRequestData;
-use DenLopes\Waha\Data\Input\RequestCodeRequestData;
-use DenLopes\Waha\Data\Output\Base64FileData;
-use DenLopes\Waha\Data\Output\PasskeyChallengeData;
-use DenLopes\Waha\Data\Output\PasskeyConfirmationData;
-use DenLopes\Waha\Data\Output\QRCodeValueData;
-use DenLopes\Waha\Enums\WahaQrFormatEnum;
-use DenLopes\Waha\Support\WahaSession;
+use DenLopes\Waha\Concerns\SendsRequests;
+use DenLopes\Waha\Data\Input\PasskeyAssertionRequest;
+use DenLopes\Waha\Data\Input\RequestCodeRequest;
+use DenLopes\Waha\Data\Output\Base64File;
+use DenLopes\Waha\Data\Output\PasskeyChallenge;
+use DenLopes\Waha\Data\Output\PasskeyConfirmation;
+use DenLopes\Waha\Data\Output\QRCodeValue;
+use DenLopes\Waha\Enums\QrFormat;
+use DenLopes\Waha\Session;
 
 class PairingService
 {
-    use SendsWahaRequests;
+    use SendsRequests;
 
     /**
      * Get the QR code for pairing a WhatsApp session.
      *
-     * @param  WahaSession  $session  Session name.
-     * @param  WahaQrFormatEnum  $format  "image" (binary PNG) or "raw" (JSON).
-     * @return string|QRCodeValueData Binary PNG when format is image, QR code value otherwise.
+     * @param  Session  $session  Session name.
+     * @param  QrFormat  $format  "image" (binary PNG) or "raw" (JSON).
+     * @return string|QRCodeValue Binary PNG when format is image, QR code value otherwise.
      */
     public function getQrCode(
-        WahaSession $session,
-        WahaQrFormatEnum $format = WahaQrFormatEnum::IMAGE,
-    ): string|QRCodeValueData {
+        Session $session,
+        QrFormat $format = QrFormat::IMAGE,
+    ): string|QRCodeValue {
         $endpoint = '/api/{session}/auth/qr';
 
-        if ($format === WahaQrFormatEnum::IMAGE) {
+        if ($format === QrFormat::IMAGE) {
             return $this->download(
                 $endpoint,
-                ['format' => WahaQrFormatEnum::IMAGE->value],
+                ['format' => QrFormat::IMAGE->value],
                 'Communication with WAHA failed while fetching the QR code.',
                 'image/png',
                 session: $session,
@@ -43,13 +43,13 @@ class PairingService
 
         $data = $this->send('get', $endpoint, ['format' => $format->value], 'Communication with WAHA failed while fetching the QR code.', session: $session);
 
-        return QRCodeValueData::fromArray($data);
+        return QRCodeValue::fromArray($data);
     }
 
     /**
      * Request an authentication code for phone number pairing.
      */
-    public function requestCode(WahaSession $session, RequestCodeRequestData $request): array
+    public function requestCode(Session $session, RequestCodeRequest $request): array
     {
         return $this->send(
             'post',
@@ -63,7 +63,7 @@ class PairingService
     /**
      * Get the pending passkey (WebAuthn) challenge.
      */
-    public function getPasskeyChallenge(WahaSession $session): PasskeyChallengeData
+    public function getPasskeyChallenge(Session $session): PasskeyChallenge
     {
         $data = $this->send(
             'get',
@@ -73,13 +73,13 @@ class PairingService
             session: $session,
         );
 
-        return PasskeyChallengeData::fromArray($data);
+        return PasskeyChallenge::fromArray($data);
     }
 
     /**
      * Submit a WebAuthn passkey assertion to finish pairing.
      */
-    public function submitPasskey(WahaSession $session, PasskeyAssertionRequestData $assertion): array
+    public function submitPasskey(Session $session, PasskeyAssertionRequest $assertion): array
     {
         return $this->send(
             'post',
@@ -93,7 +93,7 @@ class PairingService
     /**
      * Get the pending passkey confirmation code.
      */
-    public function getPasskeyConfirmation(WahaSession $session): PasskeyConfirmationData
+    public function getPasskeyConfirmation(Session $session): PasskeyConfirmation
     {
         $data = $this->send(
             'get',
@@ -103,13 +103,13 @@ class PairingService
             session: $session,
         );
 
-        return PasskeyConfirmationData::fromArray($data);
+        return PasskeyConfirmation::fromArray($data);
     }
 
     /**
      * Confirm passkey pairing (only needed for the manual code case).
      */
-    public function confirmPasskey(WahaSession $session): array
+    public function confirmPasskey(Session $session): array
     {
         return $this->send(
             'post',
@@ -125,13 +125,13 @@ class PairingService
      *
      * WAHA selects the response representation via the `Accept` header: the
      * binary request below returns a JPEG, while the JSON request returns the
-     * {@see Base64FileData} form. There is no `format` query parameter for this
+     * {@see Base64File} form. There is no `format` query parameter for this
      * endpoint.
      *
      * @param  bool  $asBase64  When true, request/parse the base64 JSON form instead
      *                          of the default binary JPEG.
      */
-    public function getScreenshot(WahaSession $session, bool $asBase64 = false): string|Base64FileData
+    public function getScreenshot(Session $session, bool $asBase64 = false): string|Base64File
     {
         $payload = ['session' => $this->session($session)];
 
@@ -143,7 +143,7 @@ class PairingService
                 'Communication with WAHA failed while fetching the screenshot.',
             );
 
-            return Base64FileData::fromArray($data);
+            return Base64File::fromArray($data);
         }
 
         return $this->download(

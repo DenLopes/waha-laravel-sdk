@@ -4,27 +4,27 @@ declare(strict_types=1);
 
 namespace DenLopes\Waha\Services;
 
-use DenLopes\Waha\Concerns\SendsWahaRequests;
-use DenLopes\Waha\Data\Input\ApiKeyRequestData;
-use DenLopes\Waha\Data\Input\ScopedApiKeyRequestData;
-use DenLopes\Waha\Data\Output\ApiKeyData;
-use DenLopes\Waha\Support\WahaSession;
+use DenLopes\Waha\Concerns\SendsRequests;
+use DenLopes\Waha\Data\Input\ApiKeyRequest;
+use DenLopes\Waha\Data\Input\ScopedApiKeyRequest;
+use DenLopes\Waha\Data\Output\ApiKey;
+use DenLopes\Waha\Session;
 
 class ApiKeysService
 {
-    use SendsWahaRequests;
+    use SendsRequests;
 
     /**
      * Get all API keys.
      *
-     * @return ApiKeyData[]
+     * @return ApiKey[]
      */
     public function listApiKeys(): array
     {
         $data = $this->send('get', '/api/keys', [], 'Communication with WAHA failed while listing API keys.');
 
         return array_map(
-            static fn (array $item) => ApiKeyData::fromArray($item),
+            static fn (array $item) => ApiKey::fromArray($item),
             $data,
         );
     }
@@ -32,51 +32,51 @@ class ApiKeysService
     /**
      * Create a new API key.
      */
-    public function createApiKey(ApiKeyRequestData $payload): ApiKeyData
+    public function createApiKey(ApiKeyRequest $payload): ApiKey
     {
         $data = $this->send('post', '/api/keys', $payload->toArray(), 'Communication with WAHA failed while creating the API key.');
 
-        return ApiKeyData::fromArray($data);
+        return ApiKey::fromArray($data);
     }
 
     /**
      * Create or get a media-download-only API key for a session.
      */
-    public function createMediaApiKey(WahaSession $session): ApiKeyData
+    public function createMediaApiKey(Session $session): ApiKey
     {
         $data = $this->send(
             'post',
             '/api/keys/media',
-            (new ScopedApiKeyRequestData($session->value()))->toArray(),
+            (new ScopedApiKeyRequest($session->value()))->toArray(),
             'Communication with WAHA failed while creating the media API key.',
         );
 
-        return ApiKeyData::fromArray($data);
+        return ApiKey::fromArray($data);
     }
 
     /**
      * Create or get a control-only API key for a session.
      */
-    public function createControlApiKey(WahaSession $session): ApiKeyData
+    public function createControlApiKey(Session $session): ApiKey
     {
         $data = $this->send(
             'post',
             '/api/keys/control',
-            (new ScopedApiKeyRequestData($session->value()))->toArray(),
+            (new ScopedApiKeyRequest($session->value()))->toArray(),
             'Communication with WAHA failed while creating the control API key.',
         );
 
-        return ApiKeyData::fromArray($data);
+        return ApiKey::fromArray($data);
     }
 
     /**
      * Update an API key.
      */
-    public function updateApiKey(string $id, ApiKeyRequestData $payload): ApiKeyData
+    public function updateApiKey(string $id, ApiKeyRequest $payload): ApiKey
     {
         $data = $this->send('put', "/api/keys/{$id}", $payload->toArray(), 'Communication with WAHA failed while updating the API key.');
 
-        return ApiKeyData::fromArray($data);
+        return ApiKey::fromArray($data);
     }
 
     /**

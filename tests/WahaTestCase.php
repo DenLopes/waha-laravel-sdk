@@ -4,18 +4,20 @@ declare(strict_types=1);
 
 namespace DenLopes\Waha\Tests;
 
-use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use DenLopes\Waha\WahaServiceProvider;
+use Orchestra\Testbench\TestCase as BaseTestCase;
 
 /**
- * Lightweight Laravel test base for WAHA tests that need the container (e.g.
- * Http::fake() and config()), without the database seeding used by the main
- * application test suite.
+ * Testbench-backed base case for tests that need a booted Laravel application.
  *
- * The framework base class already boots the host application via
- * `Application::inferBasePath()`, so no `createApplication()` override is
- * required here.
+ * Registering {@see WahaServiceProvider} here gives those tests the container,
+ * `config()`, facades and HTTP layer they need, while keeping the package
+ * self-contained: `composer test` works without a host application.
  */
 abstract class WahaTestCase extends BaseTestCase
 {
-    //
+    protected function getPackageProviders($app): array
+    {
+        return [WahaServiceProvider::class];
+    }
 }

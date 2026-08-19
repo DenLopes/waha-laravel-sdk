@@ -4,19 +4,19 @@ declare(strict_types=1);
 
 namespace DenLopes\Waha\Tests;
 
-use DenLopes\Waha\Debug\WahaDebugStore;
+use DenLopes\Waha\Debug\DebugStore;
 use PHPUnit\Framework\TestCase;
 
 final class WahaDebugTest extends TestCase
 {
     public function test_last_returns_null_initially(): void
     {
-        $this->assertNull((new WahaDebugStore)->last());
+        $this->assertNull((new DebugStore)->last());
     }
 
     public function test_last_curl_renders_command(): void
     {
-        $store = new WahaDebugStore;
+        $store = new DebugStore;
         $store->setLast([
             'request' => [
                 'method'  => 'POST',
@@ -36,7 +36,7 @@ final class WahaDebugTest extends TestCase
 
     public function test_clear_resets_last(): void
     {
-        $store = new WahaDebugStore;
+        $store = new DebugStore;
         $store->setLast(['request' => []]);
         $store->clear();
 

@@ -4,28 +4,28 @@ declare(strict_types=1);
 
 namespace DenLopes\Waha\Services;
 
-use DenLopes\Waha\Concerns\SendsWahaRequests;
-use DenLopes\Waha\Data\Input\VideoFileData;
-use DenLopes\Waha\Data\Input\VoiceFileData;
-use DenLopes\Waha\Data\Output\Base64FileData;
-use DenLopes\Waha\Support\WahaSession;
+use DenLopes\Waha\Concerns\SendsRequests;
+use DenLopes\Waha\Data\Input\VideoFile;
+use DenLopes\Waha\Data\Input\VoiceFile;
+use DenLopes\Waha\Data\Output\Base64File;
+use DenLopes\Waha\Session;
 
 class MediaService
 {
-    use SendsWahaRequests;
+    use SendsRequests;
 
     /**
      * Convert a voice file to the WhatsApp (opus) format.
      *
      * WAHA selects the response representation via the `Accept` header: the
      * binary request below returns `audio/ogg`, while the JSON request returns
-     * the {@see Base64FileData} form. There is no `format` query parameter for
+     * the {@see Base64File} form. There is no `format` query parameter for
      * this endpoint.
      *
      * @param  bool  $asBase64  When true, request/parse the base64 JSON form instead
      *                          of the default binary response.
      */
-    public function convertVoice(WahaSession $session, VoiceFileData $file, bool $asBase64 = false): string|Base64FileData
+    public function convertVoice(Session $session, VoiceFile $file, bool $asBase64 = false): string|Base64File
     {
         $endpoint = '/api/{session}/media/convert/voice';
 
@@ -38,7 +38,7 @@ class MediaService
                 session: $session,
             );
 
-            return Base64FileData::fromArray($data);
+            return Base64File::fromArray($data);
         }
 
         return $this->downloadPost(
@@ -55,13 +55,13 @@ class MediaService
      *
      * WAHA selects the response representation via the `Accept` header: the
      * binary request below returns `video/mp4`, while the JSON request returns
-     * the {@see Base64FileData} form. There is no `format` query parameter for
+     * the {@see Base64File} form. There is no `format` query parameter for
      * this endpoint.
      *
      * @param  bool  $asBase64  When true, request/parse the base64 JSON form instead
      *                          of the default binary response.
      */
-    public function convertVideo(WahaSession $session, VideoFileData $file, bool $asBase64 = false): string|Base64FileData
+    public function convertVideo(Session $session, VideoFile $file, bool $asBase64 = false): string|Base64File
     {
         $endpoint = '/api/{session}/media/convert/video';
 
@@ -74,7 +74,7 @@ class MediaService
                 session: $session,
             );
 
-            return Base64FileData::fromArray($data);
+            return Base64File::fromArray($data);
         }
 
         return $this->downloadPost(

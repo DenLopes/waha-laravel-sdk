@@ -6,7 +6,7 @@ namespace DenLopes\Waha\Security;
 
 use DenLopes\Waha\Contracts\ApiKeyProvider;
 use DenLopes\Waha\Contracts\HostRegistry;
-use DenLopes\Waha\Enums\WahaApiKeyModeEnum;
+use DenLopes\Waha\Enums\ApiKeyMode;
 
 /**
  * Resolves API keys from host configuration.
@@ -32,7 +32,7 @@ final class ConfigApiKeyProvider implements ApiKeyProvider
         return is_string($key) && $key !== '' ? $key : null;
     }
 
-    public function mode(string $hostKey): WahaApiKeyModeEnum
+    public function mode(string $hostKey): ApiKeyMode
     {
         return $this->hosts->get($hostKey)->mode;
     }

@@ -4,27 +4,27 @@ declare(strict_types=1);
 
 namespace DenLopes\Waha\Services;
 
-use DenLopes\Waha\Concerns\SendsWahaRequests;
-use DenLopes\Waha\Data\AppData;
-use DenLopes\Waha\Support\WahaSession;
+use DenLopes\Waha\Concerns\SendsRequests;
+use DenLopes\Waha\Data\App;
+use DenLopes\Waha\Session;
 
 class AppsService
 {
-    use SendsWahaRequests;
+    use SendsRequests;
 
     /**
      * List all apps for a session.
      *
-     * @return AppData[]
+     * @return App[]
      */
-    public function listApps(WahaSession $session): array
+    public function listApps(Session $session): array
     {
         $data = $this->send('get', '/api/apps', [
             'session' => $session->value(),
         ], 'Communication with WAHA failed while listing apps.');
 
         return array_map(
-            static fn (array $item) => AppData::fromArray($item),
+            static fn (array $item) => App::fromArray($item),
             $data,
         );
     }
@@ -32,31 +32,31 @@ class AppsService
     /**
      * Create a new app.
      */
-    public function createApp(AppData $app): AppData
+    public function createApp(App $app): App
     {
         $data = $this->send('post', '/api/apps', $app->toArray(), 'Communication with WAHA failed while creating the app.');
 
-        return AppData::fromArray($data);
+        return App::fromArray($data);
     }
 
     /**
      * Get an app by ID.
      */
-    public function getApp(string $id): AppData
+    public function getApp(string $id): App
     {
         $data = $this->send('get', "/api/apps/{$id}", [], 'Communication with WAHA failed while fetching the app.');
 
-        return AppData::fromArray($data);
+        return App::fromArray($data);
     }
 
     /**
      * Update an existing app.
      */
-    public function updateApp(string $id, AppData $app): AppData
+    public function updateApp(string $id, App $app): App
     {
         $data = $this->send('put', "/api/apps/{$id}", $app->toArray(), 'Communication with WAHA failed while updating the app.');
 
-        return AppData::fromArray($data);
+        return App::fromArray($data);
     }
 
     /**
