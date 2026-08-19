@@ -22,7 +22,7 @@ class LabelsService
      */
     public function getLabels(WahaSession $session): array
     {
-        $data = $this->send('get', "/api/{$this->session($session)}/labels", [], 'Communication with WAHA failed while fetching labels.');
+        $data = $this->send('get', '/api/{session}/labels', [], 'Communication with WAHA failed while fetching labels.', session: $session);
 
         return array_map(
             static fn (array $item) => LabelData::fromArray($item),
@@ -35,7 +35,7 @@ class LabelsService
      */
     public function createLabel(WahaSession $session, LabelBodyData $body): LabelData
     {
-        $data = $this->send('post', "/api/{$this->session($session)}/labels", $body->toArray(), 'Communication with WAHA failed while creating the label.');
+        $data = $this->send('post', '/api/{session}/labels', $body->toArray(), 'Communication with WAHA failed while creating the label.', session: $session);
 
         return LabelData::fromArray($data);
     }
@@ -45,7 +45,7 @@ class LabelsService
      */
     public function updateLabel(WahaSession $session, string $labelId, LabelBodyData $body): LabelData
     {
-        $data = $this->send('put', "/api/{$this->session($session)}/labels/{$labelId}", $body->toArray(), 'Communication with WAHA failed while updating the label.');
+        $data = $this->send('put', "/api/{session}/labels/{$labelId}", $body->toArray(), 'Communication with WAHA failed while updating the label.', session: $session);
 
         return LabelData::fromArray($data);
     }
@@ -55,7 +55,7 @@ class LabelsService
      */
     public function deleteLabel(WahaSession $session, string $labelId): array
     {
-        return $this->send('delete', "/api/{$this->session($session)}/labels/{$labelId}", [], 'Communication with WAHA failed while deleting the label.');
+        return $this->send('delete', "/api/{session}/labels/{$labelId}", [], 'Communication with WAHA failed while deleting the label.', session: $session);
     }
 
     /**
@@ -65,7 +65,7 @@ class LabelsService
      */
     public function getChatLabels(WahaSession $session, string $chatId): array
     {
-        $data = $this->send('get', "/api/{$this->session($session)}/labels/chats/{$chatId}", [], 'Communication with WAHA failed while fetching the chat labels.');
+        $data = $this->send('get', "/api/{session}/labels/chats/{$chatId}", [], 'Communication with WAHA failed while fetching the chat labels.', session: $session);
 
         return array_map(
             static fn (array $item) => LabelData::fromArray($item),
@@ -78,7 +78,7 @@ class LabelsService
      */
     public function setChatLabels(WahaSession $session, string $chatId, SetLabelsRequestData $labels): array
     {
-        return $this->send('put', "/api/{$this->session($session)}/labels/chats/{$chatId}", $labels->toArray(), 'Communication with WAHA failed while setting the chat labels.');
+        return $this->send('put', "/api/{session}/labels/chats/{$chatId}", $labels->toArray(), 'Communication with WAHA failed while setting the chat labels.', session: $session);
     }
 
     /**
@@ -88,7 +88,7 @@ class LabelsService
      */
     public function getChatsByLabel(WahaSession $session, string $labelId): array
     {
-        $data = $this->send('get', "/api/{$this->session($session)}/labels/{$labelId}/chats", [], 'Communication with WAHA failed while fetching the chats by label.');
+        $data = $this->send('get', "/api/{session}/labels/{$labelId}/chats", [], 'Communication with WAHA failed while fetching the chats by label.', session: $session);
 
         return array_map(
             static fn (array $item) => ChatData::fromArray($item),

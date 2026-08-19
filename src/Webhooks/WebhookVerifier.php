@@ -57,7 +57,7 @@ final class WebhookVerifier
         $provided = $this->extractSignature($hmacHeader);
         $expected = hash_hmac($algo, $rawBody, $secret);
 
-        if ($provided === '' || ! hash_equals(strtolower($expected), strtolower($provided))) {
+        if ($provided === '' || !hash_equals(strtolower($expected), strtolower($provided))) {
             throw $this->invalidSignature('Invalid webhook signature.', [
                 'algorithm' => $algo,
             ]);

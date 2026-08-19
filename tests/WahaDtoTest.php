@@ -11,6 +11,7 @@ use DenLopes\Waha\Data\Output\PingData;
 use DenLopes\Waha\Data\Output\SessionInfoData;
 use DenLopes\Waha\Data\Output\WAMessageData;
 use DenLopes\Waha\Data\Output\WebhookData;
+use DenLopes\Waha\Enums\WahaAckCodeEnum;
 use DenLopes\Waha\Enums\WahaButtonTypeEnum;
 use DenLopes\Waha\Enums\WahaMessageCappingStatusEnum;
 use DenLopes\Waha\Enums\WahaMessageSourceEnum;
@@ -25,13 +26,13 @@ final class WahaDtoTest extends TestCase
     public function test_message_dto_casts_scalars_and_source_enum(): void
     {
         $dto = WAMessageData::fromArray([
-            'id' => 'false_11111111111@c.us_ABC',
+            'id'        => 'false_11111111111@c.us_ABC',
             'timestamp' => '1666943582',
-            'fromMe' => 1,
-            'hasMedia' => 0,
-            'body' => 12345,
-            'source' => 'api',
-            'ack' => '2',
+            'fromMe'    => 1,
+            'hasMedia'  => 0,
+            'body'      => 12345,
+            'source'    => 'api',
+            'ack'       => '2',
         ]);
 
         $this->assertSame('false_11111111111@c.us_ABC', $dto->id);
@@ -40,7 +41,7 @@ final class WahaDtoTest extends TestCase
         $this->assertFalse($dto->hasMedia);
         $this->assertSame('12345', $dto->body);
         $this->assertSame(WahaMessageSourceEnum::API, $dto->source);
-        $this->assertSame(2, $dto->ack);
+        $this->assertSame(WahaAckCodeEnum::DEVICE, $dto->ack);
     }
 
     public function test_message_dto_tolerates_unknown_source(): void
@@ -54,8 +55,8 @@ final class WahaDtoTest extends TestCase
     {
         $dto = MessageCappingData::fromArray([
             'cappingStatus' => 'CAPPED',
-            'totalQuota' => '1000',
-            'usedQuota' => 640,
+            'totalQuota'    => '1000',
+            'usedQuota'     => 640,
         ]);
 
         $this->assertSame(WahaMessageCappingStatusEnum::CAPPED, $dto->cappingStatus);
@@ -85,10 +86,10 @@ final class WahaDtoTest extends TestCase
     public function test_webhook_payload_maps_to_typed_dto(): void
     {
         $dto = WebhookData::fromArray([
-            'event' => 'message',
+            'event'   => 'message',
             'payload' => [
-                'id' => 'false_11111111111@c.us_ABC',
-                'body' => 'Hello',
+                'id'     => 'false_11111111111@c.us_ABC',
+                'body'   => 'Hello',
                 'fromMe' => true,
             ],
         ]);

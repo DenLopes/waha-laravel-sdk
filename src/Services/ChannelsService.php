@@ -34,7 +34,7 @@ class ChannelsService
             $payload['role'] = $role->value;
         }
 
-        $data = $this->send('get', "/api/{$this->session($session)}/channels", $payload, 'Communication with WAHA failed while listing channels.');
+        $data = $this->send('get', '/api/{session}/channels', $payload, 'Communication with WAHA failed while listing channels.', session: $session);
 
         return array_map(
             static fn (array $item) => ChannelData::fromArray($item),
@@ -47,7 +47,7 @@ class ChannelsService
      */
     public function createChannel(WahaSession $session, CreateChannelRequestData $request): ChannelData
     {
-        $data = $this->send('post', "/api/{$this->session($session)}/channels", $request->toArray(), 'Communication with WAHA failed while creating the channel.');
+        $data = $this->send('post', '/api/{session}/channels', $request->toArray(), 'Communication with WAHA failed while creating the channel.', session: $session);
 
         return ChannelData::fromArray($data);
     }
@@ -57,7 +57,7 @@ class ChannelsService
      */
     public function deleteChannel(WahaSession $session, string $id): array
     {
-        return $this->send('delete', "/api/{$this->session($session)}/channels/{$id}", [], 'Communication with WAHA failed while deleting the channel.');
+        return $this->send('delete', "/api/{session}/channels/{$id}", [], 'Communication with WAHA failed while deleting the channel.', session: $session);
     }
 
     /**
@@ -65,7 +65,7 @@ class ChannelsService
      */
     public function getChannel(WahaSession $session, string $id): ChannelData
     {
-        $data = $this->send('get', "/api/{$this->session($session)}/channels/{$id}", [], 'Communication with WAHA failed while fetching the channel.');
+        $data = $this->send('get', "/api/{session}/channels/{$id}", [], 'Communication with WAHA failed while fetching the channel.', session: $session);
 
         return ChannelData::fromArray($data);
     }
@@ -81,10 +81,10 @@ class ChannelsService
         bool $downloadMedia = false,
         int $limit = 10,
     ): array {
-        $data = $this->send('get', "/api/{$this->session($session)}/channels/{$id}/messages/preview", [
+        $data = $this->send('get', "/api/{session}/channels/{$id}/messages/preview", [
             'downloadMedia' => $downloadMedia,
             'limit'         => $limit,
-        ], 'Communication with WAHA failed while previewing channel messages.');
+        ], 'Communication with WAHA failed while previewing channel messages.', session: $session);
 
         return array_map(
             static fn (array $item) => ChannelMessageData::fromArray($item),
@@ -97,7 +97,7 @@ class ChannelsService
      */
     public function followChannel(WahaSession $session, string $id): array
     {
-        return $this->send('post', "/api/{$this->session($session)}/channels/{$id}/follow", [], 'Communication with WAHA failed while following the channel.');
+        return $this->send('post', "/api/{session}/channels/{$id}/follow", [], 'Communication with WAHA failed while following the channel.', session: $session);
     }
 
     /**
@@ -105,7 +105,7 @@ class ChannelsService
      */
     public function unfollowChannel(WahaSession $session, string $id): array
     {
-        return $this->send('post', "/api/{$this->session($session)}/channels/{$id}/unfollow", [], 'Communication with WAHA failed while unfollowing the channel.');
+        return $this->send('post', "/api/{session}/channels/{$id}/unfollow", [], 'Communication with WAHA failed while unfollowing the channel.', session: $session);
     }
 
     /**
@@ -113,7 +113,7 @@ class ChannelsService
      */
     public function muteChannel(WahaSession $session, string $id): array
     {
-        return $this->send('post', "/api/{$this->session($session)}/channels/{$id}/mute", [], 'Communication with WAHA failed while muting the channel.');
+        return $this->send('post', "/api/{session}/channels/{$id}/mute", [], 'Communication with WAHA failed while muting the channel.', session: $session);
     }
 
     /**
@@ -121,7 +121,7 @@ class ChannelsService
      */
     public function unmuteChannel(WahaSession $session, string $id): array
     {
-        return $this->send('post', "/api/{$this->session($session)}/channels/{$id}/unmute", [], 'Communication with WAHA failed while unmuting the channel.');
+        return $this->send('post', "/api/{session}/channels/{$id}/unmute", [], 'Communication with WAHA failed while unmuting the channel.', session: $session);
     }
 
     /**
@@ -129,7 +129,7 @@ class ChannelsService
      */
     public function searchChannelsByView(WahaSession $session, ChannelSearchByViewData $request): ChannelListResultData
     {
-        $data = $this->send('post', "/api/{$this->session($session)}/channels/search/by-view", $request->toArray(), 'Communication with WAHA failed while searching channels by view.');
+        $data = $this->send('post', '/api/{session}/channels/search/by-view', $request->toArray(), 'Communication with WAHA failed while searching channels by view.', session: $session);
 
         return ChannelListResultData::fromArray($data);
     }
@@ -139,7 +139,7 @@ class ChannelsService
      */
     public function searchChannelsByText(WahaSession $session, ChannelSearchByTextData $request): ChannelListResultData
     {
-        $data = $this->send('post', "/api/{$this->session($session)}/channels/search/by-text", $request->toArray(), 'Communication with WAHA failed while searching channels by text.');
+        $data = $this->send('post', '/api/{session}/channels/search/by-text', $request->toArray(), 'Communication with WAHA failed while searching channels by text.', session: $session);
 
         return ChannelListResultData::fromArray($data);
     }
@@ -151,7 +151,7 @@ class ChannelsService
      */
     public function getSearchViews(WahaSession $session): array
     {
-        $data = $this->send('get', "/api/{$this->session($session)}/channels/search/views", [], 'Communication with WAHA failed while fetching channel search views.');
+        $data = $this->send('get', '/api/{session}/channels/search/views', [], 'Communication with WAHA failed while fetching channel search views.', session: $session);
 
         return array_map(
             static fn (array $item) => ChannelViewData::fromArray($item),
@@ -166,7 +166,7 @@ class ChannelsService
      */
     public function getSearchCountries(WahaSession $session): array
     {
-        $data = $this->send('get', "/api/{$this->session($session)}/channels/search/countries", [], 'Communication with WAHA failed while fetching channel search countries.');
+        $data = $this->send('get', '/api/{session}/channels/search/countries', [], 'Communication with WAHA failed while fetching channel search countries.', session: $session);
 
         return array_map(
             static fn (array $item) => ChannelCountryData::fromArray($item),
@@ -181,7 +181,7 @@ class ChannelsService
      */
     public function getSearchCategories(WahaSession $session): array
     {
-        $data = $this->send('get', "/api/{$this->session($session)}/channels/search/categories", [], 'Communication with WAHA failed while fetching channel search categories.');
+        $data = $this->send('get', '/api/{session}/channels/search/categories', [], 'Communication with WAHA failed while fetching channel search categories.', session: $session);
 
         return array_map(
             static fn (array $item) => ChannelCategoryData::fromArray($item),

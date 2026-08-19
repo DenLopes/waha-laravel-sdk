@@ -21,7 +21,7 @@ class ProfileService
      */
     public function getMyProfile(WahaSession $session): MyProfileData
     {
-        $data = $this->send('get', "/api/{$this->session($session)}/profile", [], 'Communication with WAHA failed while fetching the profile.');
+        $data = $this->send('get', '/api/{session}/profile', [], 'Communication with WAHA failed while fetching the profile.', session: $session);
 
         return MyProfileData::fromArray($data);
     }
@@ -31,7 +31,7 @@ class ProfileService
      */
     public function setProfileName(WahaSession $session, ProfileNameRequestData $request): ResultData
     {
-        $data = $this->send('put', "/api/{$this->session($session)}/profile/name", $request->toArray(), 'Communication with WAHA failed while setting the profile name.');
+        $data = $this->send('put', '/api/{session}/profile/name', $request->toArray(), 'Communication with WAHA failed while setting the profile name.', session: $session);
 
         return ResultData::fromArray($data);
     }
@@ -41,7 +41,7 @@ class ProfileService
      */
     public function setProfileStatus(WahaSession $session, ProfileStatusRequestData $request): ResultData
     {
-        $data = $this->send('put', "/api/{$this->session($session)}/profile/status", $request->toArray(), 'Communication with WAHA failed while setting the profile status.');
+        $data = $this->send('put', '/api/{session}/profile/status', $request->toArray(), 'Communication with WAHA failed while setting the profile status.', session: $session);
 
         return ResultData::fromArray($data);
     }
@@ -51,7 +51,7 @@ class ProfileService
      */
     public function setProfilePicture(WahaSession $session, ProfilePictureRequestData $request): ResultData
     {
-        $data = $this->send('put', "/api/{$this->session($session)}/profile/picture", $request->toArray(), 'Communication with WAHA failed while setting the profile picture.');
+        $data = $this->send('put', '/api/{session}/profile/picture', $request->toArray(), 'Communication with WAHA failed while setting the profile picture.', session: $session);
 
         return ResultData::fromArray($data);
     }
@@ -61,7 +61,7 @@ class ProfileService
      */
     public function deleteProfilePicture(WahaSession $session): ResultData
     {
-        $data = $this->send('delete', "/api/{$this->session($session)}/profile/picture", [], 'Communication with WAHA failed while deleting the profile picture.');
+        $data = $this->send('delete', '/api/{session}/profile/picture', [], 'Communication with WAHA failed while deleting the profile picture.', session: $session);
 
         return ResultData::fromArray($data);
     }

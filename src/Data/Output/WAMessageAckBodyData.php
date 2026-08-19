@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace DenLopes\Waha\Data\Output;
 
 use DenLopes\Waha\Data\WahaData;
+use DenLopes\Waha\Enums\WahaAckCodeEnum;
 
 /**
  * Payload of the `message.ack` and `message.ack.group` webhook events.
@@ -20,7 +21,7 @@ final readonly class WAMessageAckBodyData extends WahaData
         public ?string $to,
         public ?string $participant,
         public ?bool $fromMe,
-        public ?int $ack,
+        public ?WahaAckCodeEnum $ack,
         public ?string $ackName,
         public ?array $raw,
     ) {}
@@ -33,7 +34,7 @@ final readonly class WAMessageAckBodyData extends WahaData
             to: isset($data['to']) ? (string) $data['to'] : null,
             participant: isset($data['participant']) ? (string) $data['participant'] : null,
             fromMe: isset($data['fromMe']) ? (bool) $data['fromMe'] : null,
-            ack: isset($data['ack']) ? (int) $data['ack'] : null,
+            ack: isset($data['ack']) ? WahaAckCodeEnum::tryFrom((int) $data['ack']) : null,
             ackName: isset($data['ackName']) ? (string) $data['ackName'] : null,
             raw: $data['_data'] ?? null,
         );

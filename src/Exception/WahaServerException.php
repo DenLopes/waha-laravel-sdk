@@ -9,7 +9,7 @@ use Throwable;
 /**
  * Thrown when WAHA returns a server-side error (HTTP 5xx).
  */
-class WahaServerException extends WahaException
+class WahaServerException extends WahaApiException
 {
     public function __construct(
         string $message = 'WAHA server error.',

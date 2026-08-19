@@ -38,12 +38,12 @@ final class FakeWahaClient implements WahaClientInterface
     public function download(string $endpoint, array $payload = [], ?string $expectedContentType = null, bool $authenticated = true, ?string $session = null): string
     {
         $this->requests[] = [
-            'method' => 'get',
-            'endpoint' => $endpoint,
-            'payload' => $payload,
-            'query' => [],
+            'method'        => 'get',
+            'endpoint'      => $endpoint,
+            'payload'       => $payload,
+            'query'         => [],
             'authenticated' => $authenticated,
-            'session' => $session,
+            'session'       => $session,
         ];
 
         return $this->downloadResponse;
@@ -52,12 +52,12 @@ final class FakeWahaClient implements WahaClientInterface
     public function downloadPost(string $endpoint, array $payload = [], ?string $expectedContentType = null, bool $authenticated = true, ?string $session = null): string
     {
         $this->requests[] = [
-            'method' => 'post',
-            'endpoint' => $endpoint,
-            'payload' => $payload,
-            'query' => [],
+            'method'        => 'post',
+            'endpoint'      => $endpoint,
+            'payload'       => $payload,
+            'query'         => [],
             'authenticated' => $authenticated,
-            'session' => $session,
+            'session'       => $session,
         ];
 
         return $this->downloadResponse;

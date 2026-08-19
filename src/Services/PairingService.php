@@ -29,7 +29,7 @@ class PairingService
         WahaSession $session,
         WahaQrFormatEnum $format = WahaQrFormatEnum::IMAGE,
     ): string|QRCodeValueData {
-        $endpoint = "/api/{$this->session($session)}/auth/qr";
+        $endpoint = '/api/{session}/auth/qr';
 
         if ($format === WahaQrFormatEnum::IMAGE) {
             return $this->download(
@@ -37,10 +37,11 @@ class PairingService
                 ['format' => WahaQrFormatEnum::IMAGE->value],
                 'Communication with WAHA failed while fetching the QR code.',
                 'image/png',
+                session: $session,
             );
         }
 
-        $data = $this->send('get', $endpoint, ['format' => $format->value], 'Communication with WAHA failed while fetching the QR code.');
+        $data = $this->send('get', $endpoint, ['format' => $format->value], 'Communication with WAHA failed while fetching the QR code.', session: $session);
 
         return QRCodeValueData::fromArray($data);
     }
@@ -52,9 +53,10 @@ class PairingService
     {
         return $this->send(
             'post',
-            "/api/{$this->session($session)}/auth/request-code",
+            '/api/{session}/auth/request-code',
             $request->toArray(),
             'Communication with WAHA failed while requesting the authentication code.',
+            session: $session,
         );
     }
 
@@ -65,9 +67,10 @@ class PairingService
     {
         $data = $this->send(
             'get',
-            "/api/{$this->session($session)}/auth/passkey/challenge",
+            '/api/{session}/auth/passkey/challenge',
             [],
             'Communication with WAHA failed while fetching the passkey challenge.',
+            session: $session,
         );
 
         return PasskeyChallengeData::fromArray($data);
@@ -80,9 +83,10 @@ class PairingService
     {
         return $this->send(
             'post',
-            "/api/{$this->session($session)}/auth/passkey",
+            '/api/{session}/auth/passkey',
             $assertion->toArray(),
             'Communication with WAHA failed while submitting the passkey.',
+            session: $session,
         );
     }
 
@@ -93,9 +97,10 @@ class PairingService
     {
         $data = $this->send(
             'get',
-            "/api/{$this->session($session)}/auth/passkey/confirmation",
+            '/api/{session}/auth/passkey/confirmation',
             [],
             'Communication with WAHA failed while fetching the passkey confirmation.',
+            session: $session,
         );
 
         return PasskeyConfirmationData::fromArray($data);
@@ -108,9 +113,10 @@ class PairingService
     {
         return $this->send(
             'post',
-            "/api/{$this->session($session)}/auth/passkey/confirm",
+            '/api/{session}/auth/passkey/confirm',
             [],
             'Communication with WAHA failed while confirming the passkey.',
+            session: $session,
         );
     }
 

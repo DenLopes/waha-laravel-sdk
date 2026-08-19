@@ -9,7 +9,7 @@ use Throwable;
 /**
  * Thrown when WAHA returns an HTTP 429 rate-limit response.
  */
-class WahaRateLimitException extends WahaException
+class WahaRateLimitException extends WahaApiException
 {
     public function __construct(
         string $message = 'WAHA rate limit exceeded.',

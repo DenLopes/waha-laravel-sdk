@@ -10,6 +10,7 @@ use DenLopes\Waha\Data\Input\ButtonData;
 use DenLopes\Waha\Data\Input\ContactData;
 use DenLopes\Waha\Data\Input\LinkPreviewData;
 use DenLopes\Waha\Data\Input\MessagePollData;
+use DenLopes\Waha\Data\Input\MessagePollVoteRequestData;
 use DenLopes\Waha\Data\Input\RemoteFileData;
 use DenLopes\Waha\Data\Input\SendListMessageData;
 use DenLopes\Waha\Data\Input\VCardContactData;
@@ -276,26 +277,12 @@ class ChattingService
 
     /**
      * Vote on a poll.
-     *
-     * @param  array<int, array<int, string>>  $votes  Poll options being voted for (list of option lists).
      */
-    public function sendPollVote(
-        string $chatId,
-        string $pollMessageId,
-        array $votes,
-        ?WahaSession $session = null,
-        ?int $pollServerId = null,
-    ): array {
-        $payload = [
-            'chatId'        => $chatId,
-            'pollMessageId' => $pollMessageId,
-            'votes'         => $votes,
-            'session'       => $this->session($session),
-        ];
-
-        if ($pollServerId !== null) {
-            $payload['pollServerId'] = $pollServerId;
-        }
+    public function sendPollVote(MessagePollVoteRequestData $request, ?WahaSession $session = null): array
+    {
+        $payload = array_merge($request->toArray(), [
+            'session' => $this->session($session),
+        ]);
 
         return $this->send('post', '/api/sendPollVote', $payload, 'Communication with WAHA failed while voting on the poll.');
     }
@@ -482,7 +469,7 @@ class ChattingService
      */
     public function getNewMessageId(WahaSession $session): NewMessageIdData
     {
-        $data = $this->send('get', "/api/{$this->session($session)}/new-message-id", [], 'Communication with WAHA failed while generating a message ID.');
+        $data = $this->send('get', '/api/{session}/new-message-id', [], 'Communication with WAHA failed while generating a message ID.', session: $session);
 
         return NewMessageIdData::fromArray($data);
     }

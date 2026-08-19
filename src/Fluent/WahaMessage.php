@@ -26,8 +26,8 @@ final class WahaMessage implements WahaMessageContract
         private readonly WahaSession $session,
         private readonly string $chatId,
         private readonly string $id,
-        private ?ChatsService $chats = null,
-        private ?ChattingService $chatting = null,
+        private readonly ChatsService $chats,
+        private readonly ChattingService $chatting,
     ) {}
 
     /**
@@ -37,25 +37,13 @@ final class WahaMessage implements WahaMessageContract
         WahaSession $session,
         string $chatId,
         WAMessageData $message,
-        ?ChatsService $chats = null,
-        ?ChattingService $chatting = null,
+        ChatsService $chats,
+        ChattingService $chatting,
     ): self {
         $instance = new self($session, $chatId, $message->id, $chats, $chatting);
         $instance->snapshot = $message;
 
         return $instance;
-    }
-
-    /**
-     * Find a message by chat ID and message ID.
-     */
-    public static function find(string $chatId, string $id, ?WahaSession $session = null): self
-    {
-        $session ??= WahaSession::default();
-        $chats = app(ChatsService::class);
-        $message = $chats->getChatMessage($session, $chatId, $id);
-
-        return self::fromData($session, $chatId, $message, $chats);
     }
 
     public function session(): WahaSession
@@ -204,11 +192,11 @@ final class WahaMessage implements WahaMessageContract
 
     private function chats(): ChatsService
     {
-        return $this->chats ??= app(ChatsService::class);
+        return $this->chats;
     }
 
     private function chatting(): ChattingService
     {
-        return $this->chatting ??= app(ChattingService::class);
+        return $this->chatting;
     }
 }

@@ -7,6 +7,7 @@ namespace DenLopes\Waha\Webhooks;
 use DenLopes\Waha\Data\Output\WebhookData;
 use DenLopes\Waha\Exception\WahaIntegrationException;
 use DenLopes\Waha\Exception\WahaWebhookException;
+use DenLopes\Waha\WahaServiceProvider;
 use DenLopes\Waha\Webhooks\Events\WahaWebhookReceived;
 use DenLopes\Waha\Webhooks\Jobs\ProcessWahaWebhookJob;
 use DenLopes\Waha\Webhooks\Models\WahaWebhookEvent;
@@ -17,7 +18,7 @@ use Illuminate\Support\Facades\Log;
 /**
  * Stateless HTTP entry point for WAHA webhook deliveries.
  *
- * The route is registered by {@see \DenLopes\Waha\WahaServiceProvider} when webhooks
+ * The route is registered by {@see WahaServiceProvider} when webhooks
  * are enabled. It verifies the signature/timestamp/replay, parses the payload
  * into a {@see WebhookData}, then dispatches it (inline or through the queue).
  */
@@ -26,11 +27,12 @@ final class WebhookController
     public function __construct(
         private readonly WebhookVerifier $verifier,
         private readonly WebhookGuard $guard,
+        private readonly WahaWebhookRouter $router,
     ) {}
 
     public function __invoke(Request $request): JsonResponse
     {
-        if (! (bool) config('waha.webhooks.enabled', true)) {
+        if (!(bool) config('waha.webhooks.enabled', true)) {
             return response()->json(['ok' => false, 'reason' => 'webhooks_disabled'], 404);
         }
 
@@ -95,7 +97,7 @@ final class WebhookController
      */
     private function store(WebhookData $webhook, string $rawBody, ?string $requestId): void
     {
-        if (! (bool) config('waha.webhooks.store.enabled', false)) {
+        if (!(bool) config('waha.webhooks.store.enabled', false)) {
             return;
         }
 
@@ -154,7 +156,7 @@ final class WebhookController
         $event = new WahaWebhookReceived($webhook, $rawBody, $requestId, $timestampMs);
 
         event($event);
-        app(WahaWebhookRouter::class)->handle($event);
+        $this->router->handle($event);
     }
 
     private function stringHeader(Request $request, string $name): ?string

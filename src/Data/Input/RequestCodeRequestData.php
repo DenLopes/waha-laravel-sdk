@@ -20,7 +20,7 @@ final readonly class RequestCodeRequestData extends WahaData
     {
         return new self(
             phoneNumber: (string) ($data['phoneNumber'] ?? ''),
-            method: $data['method'] ?? null,
+            method: self::string($data, 'method'),
         );
     }
 }

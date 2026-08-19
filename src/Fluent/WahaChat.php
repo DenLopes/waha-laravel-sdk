@@ -6,10 +6,12 @@ namespace DenLopes\Waha\Fluent;
 
 use DenLopes\Waha\Contracts\WahaChatContract;
 use DenLopes\Waha\Data\Input\BinaryFileData;
+use DenLopes\Waha\Data\Input\ContactData;
 use DenLopes\Waha\Data\Input\LinkPreviewData;
 use DenLopes\Waha\Data\Input\MessagePollData;
 use DenLopes\Waha\Data\Input\RemoteFileData;
 use DenLopes\Waha\Data\Input\SendListMessageData;
+use DenLopes\Waha\Data\Input\VCardContactData;
 use DenLopes\Waha\Data\Input\VideoBinaryFileData;
 use DenLopes\Waha\Data\Input\VideoRemoteFileData;
 use DenLopes\Waha\Data\Input\VoiceBinaryFileData;
@@ -39,8 +41,8 @@ final class WahaChat implements WahaChatContract
     public function __construct(
         private readonly WahaSession $session,
         private readonly string $chatId,
-        private ?ChattingService $chatting = null,
-        private ?ChatsService $chats = null,
+        private readonly ChattingService $chatting,
+        private readonly ChatsService $chats,
     ) {}
 
     public function session(): WahaSession
@@ -207,7 +209,7 @@ final class WahaChat implements WahaChatContract
     /**
      * Send one or more contacts as vCards.
      *
-     * @param  array<int, \DenLopes\Waha\Data\Input\ContactData|\DenLopes\Waha\Data\Input\VCardContactData>  $contacts
+     * @param  array<int, ContactData|VCardContactData>  $contacts
      */
     public function sendContactVcard(array $contacts, ?string $replyTo = null, ?string $id = null): WahaMessage
     {
@@ -431,11 +433,11 @@ final class WahaChat implements WahaChatContract
 
     private function chatting(): ChattingService
     {
-        return $this->chatting ??= app(ChattingService::class);
+        return $this->chatting;
     }
 
     private function chats(): ChatsService
     {
-        return $this->chats ??= app(ChatsService::class);
+        return $this->chats;
     }
 }

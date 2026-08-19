@@ -47,9 +47,9 @@ final class WahaServiceTest extends TestCase
     public function test_send_text_builds_payload_and_returns_message(): void
     {
         $fake = new FakeWahaClient([
-            'id' => 'false_11111111111@c.us_ABC',
+            'id'     => 'false_11111111111@c.us_ABC',
             'fromMe' => true,
-            'body' => 'Hello',
+            'body'   => 'Hello',
         ]);
 
         $message = (new ChattingService($fake))->sendText(
@@ -84,7 +84,7 @@ final class WahaServiceTest extends TestCase
     public function test_get_join_info_returns_typed_dto(): void
     {
         $fake = new FakeWahaClient([
-            'id' => '123123123@g.us',
+            'id'      => '123123123@g.us',
             'subject' => 'Group',
         ]);
 

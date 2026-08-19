@@ -6,6 +6,7 @@ namespace DenLopes\Waha\Security;
 
 use DenLopes\Waha\Contracts\ApiKeyProvider;
 use DenLopes\Waha\Contracts\HostRegistry;
+use DenLopes\Waha\Enums\WahaApiKeyModeEnum;
 
 /**
  * Resolves API keys from host configuration.
@@ -16,26 +17,23 @@ final class ConfigApiKeyProvider implements ApiKeyProvider
 
     public function headerName(string $hostKey): string
     {
-        return (string) ($this->hosts->get($hostKey)['api_key_header'] ?? 'X-Api-Key');
+        return $this->hosts->get($hostKey)->apiKeyHeader;
     }
 
     public function adminKey(string $hostKey): ?string
     {
-        $key = $this->hosts->get($hostKey)['api_key'] ?? null;
-
-        return is_string($key) && $key !== '' ? $key : null;
+        return $this->hosts->get($hostKey)->apiKey;
     }
 
     public function sessionKey(string $hostKey, string $sessionName): ?string
     {
-        $keys = (array) ($this->hosts->get($hostKey)['session_keys'] ?? []);
-        $key = $keys[$sessionName] ?? null;
+        $key = $this->hosts->get($hostKey)->sessionKeys[$sessionName] ?? null;
 
         return is_string($key) && $key !== '' ? $key : null;
     }
 
-    public function mode(string $hostKey): string
+    public function mode(string $hostKey): WahaApiKeyModeEnum
     {
-        return (string) ($this->hosts->get($hostKey)['mode'] ?? 'admin_fallback');
+        return $this->hosts->get($hostKey)->mode;
     }
 }

@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace DenLopes\Waha\Fluent;
 
+use DenLopes\Waha\Contracts\PinStore;
 use DenLopes\Waha\Debug\WahaDebugStore;
+use DenLopes\Waha\Services\ChatsService;
+use DenLopes\Waha\Services\ChattingService;
 use DenLopes\Waha\Support\WahaSession;
 
 /**
@@ -24,12 +27,19 @@ use DenLopes\Waha\Support\WahaSession;
  */
 final class WahaManager
 {
+    public function __construct(
+        private readonly ChattingService $chatting,
+        private readonly ChatsService $chats,
+        private readonly PinStore $pins,
+        private readonly WahaDebugStore $debug,
+    ) {}
+
     /**
      * Get a chat handle (no network call is made).
      */
     public function chat(string $chatId, string|WahaSession|null $session = null): WahaChat
     {
-        return new WahaChat($this->resolveSession($session), $chatId);
+        return new WahaChat($this->resolveSession($session), $chatId, $this->chatting, $this->chats);
     }
 
     /**
@@ -37,7 +47,7 @@ final class WahaManager
      */
     public function message(string $chatId, string $id, string|WahaSession|null $session = null): WahaMessage
     {
-        return new WahaMessage($this->resolveSession($session), $chatId, $id);
+        return new WahaMessage($this->resolveSession($session), $chatId, $id, $this->chats, $this->chatting);
     }
 
     /**
@@ -49,13 +59,45 @@ final class WahaManager
     }
 
     /**
+     * Pin a session to a specific host.
+     *
+     * This is the write side of session routing: when `waha.routing.driver` is
+     * `pin`, the SDK will resolve this session to the given host on every call.
+     * An optional TTL expires the pin automatically (useful during migrations).
+     */
+    public function pinSession(string $session, string $hostKey, ?int $ttlSeconds = null): static
+    {
+        $this->pins->pin($session, $hostKey, $ttlSeconds);
+
+        return $this;
+    }
+
+    /**
+     * Remove a session → host pin.
+     */
+    public function unpinSession(string $session): static
+    {
+        $this->pins->forget($session);
+
+        return $this;
+    }
+
+    /**
+     * The host currently pinned for a session, or null when none is set.
+     */
+    public function sessionHost(string $session): ?string
+    {
+        return $this->pins->getHostForSession($session);
+    }
+
+    /**
      * The last captured request/response, for debugging.
      *
      * @return array<string, mixed>|null
      */
     public function lastHttp(): ?array
     {
-        return app(WahaDebugStore::class)->last();
+        return $this->debug->last();
     }
 
     /**
@@ -63,7 +105,7 @@ final class WahaManager
      */
     public function lastHttpCurl(): ?string
     {
-        return app(WahaDebugStore::class)->lastCurl();
+        return $this->debug->lastCurl();
     }
 
     /**

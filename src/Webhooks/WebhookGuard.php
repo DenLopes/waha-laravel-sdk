@@ -51,11 +51,11 @@ final class WebhookGuard
      */
     public function isReplay(?string $requestId): bool
     {
-        if (! $this->replayEnabled || $requestId === null || $requestId === '' || $this->replayTtlSeconds <= 0) {
+        if (!$this->replayEnabled || $requestId === null || $requestId === '' || $this->replayTtlSeconds <= 0) {
             return false;
         }
 
         // Cache::add returns false when the key already exists.
-        return ! Cache::add($this->replayCachePrefix.$requestId, 1, $this->replayTtlSeconds);
+        return !Cache::add($this->replayCachePrefix.$requestId, 1, $this->replayTtlSeconds);
     }
 }

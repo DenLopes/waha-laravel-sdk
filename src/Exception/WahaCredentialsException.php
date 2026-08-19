@@ -10,7 +10,7 @@ use Throwable;
  * Thrown when the WAHA API key is missing or the request is rejected as
  * unauthorized (HTTP 401/403).
  */
-class WahaCredentialsException extends WahaException
+class WahaCredentialsException extends WahaAuthenticationException
 {
     public function __construct(
         string $message = 'WAHA API key not configured or invalid. Set WAHA_API_KEY in your environment.',

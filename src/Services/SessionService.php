@@ -67,7 +67,7 @@ class SessionService
             $payload['expand'] = $expand;
         }
 
-        $data = $this->send('get', "/api/sessions/{$this->session($session)}", $payload, 'Communication with WAHA failed while fetching the session.');
+        $data = $this->send('get', '/api/sessions/{session}', $payload, 'Communication with WAHA failed while fetching the session.', session: $session);
 
         return SessionInfoData::fromArray($data);
     }
@@ -77,7 +77,7 @@ class SessionService
      */
     public function updateSession(WahaSession $session, SessionUpdateRequestData $request): SessionData
     {
-        $data = $this->send('put', "/api/sessions/{$this->session($session)}", $request->toArray(), 'Communication with WAHA failed while updating the session.');
+        $data = $this->send('put', '/api/sessions/{session}', $request->toArray(), 'Communication with WAHA failed while updating the session.', session: $session);
 
         return SessionData::fromArray($data);
     }
@@ -87,7 +87,7 @@ class SessionService
      */
     public function deleteSession(WahaSession $session): array
     {
-        return $this->send('delete', "/api/sessions/{$this->session($session)}", [], 'Communication with WAHA failed while deleting the session.');
+        return $this->send('delete', '/api/sessions/{session}', [], 'Communication with WAHA failed while deleting the session.', session: $session);
     }
 
     /**
@@ -95,7 +95,7 @@ class SessionService
      */
     public function getMe(WahaSession $session): MeInfoData
     {
-        $data = $this->send('get', "/api/sessions/{$this->session($session)}/me", [], 'Communication with WAHA failed while fetching the authenticated account.');
+        $data = $this->send('get', '/api/sessions/{session}/me', [], 'Communication with WAHA failed while fetching the authenticated account.', session: $session);
 
         return MeInfoData::fromArray($data);
     }
@@ -105,7 +105,7 @@ class SessionService
      */
     public function fetchMessageCapping(WahaSession $session): MessageCappingData
     {
-        $data = $this->send('get', "/api/sessions/{$this->session($session)}/capping", [], 'Communication with WAHA failed while fetching the message capping.');
+        $data = $this->send('get', '/api/sessions/{session}/capping', [], 'Communication with WAHA failed while fetching the message capping.', session: $session);
 
         return MessageCappingData::fromArray($data);
     }
@@ -115,7 +115,7 @@ class SessionService
      */
     public function fetchReachoutTimelock(WahaSession $session): ReachoutTimelockData
     {
-        $data = $this->send('get', "/api/sessions/{$this->session($session)}/timelock", [], 'Communication with WAHA failed while fetching the reachout timelock.');
+        $data = $this->send('get', '/api/sessions/{session}/timelock', [], 'Communication with WAHA failed while fetching the reachout timelock.', session: $session);
 
         return ReachoutTimelockData::fromArray($data);
     }
@@ -125,7 +125,7 @@ class SessionService
      */
     public function startSession(WahaSession $session): SessionData
     {
-        $data = $this->send('post', "/api/sessions/{$this->session($session)}/start", [], 'Communication with WAHA failed while starting the session.');
+        $data = $this->send('post', '/api/sessions/{session}/start', [], 'Communication with WAHA failed while starting the session.', session: $session);
 
         return SessionData::fromArray($data);
     }
@@ -135,7 +135,7 @@ class SessionService
      */
     public function stopSession(WahaSession $session): SessionData
     {
-        $data = $this->send('post', "/api/sessions/{$this->session($session)}/stop", [], 'Communication with WAHA failed while stopping the session.');
+        $data = $this->send('post', '/api/sessions/{session}/stop', [], 'Communication with WAHA failed while stopping the session.', session: $session);
 
         return SessionData::fromArray($data);
     }
@@ -145,7 +145,7 @@ class SessionService
      */
     public function logoutSession(WahaSession $session): SessionData
     {
-        $data = $this->send('post', "/api/sessions/{$this->session($session)}/logout", [], 'Communication with WAHA failed while logging out of the session.');
+        $data = $this->send('post', '/api/sessions/{session}/logout', [], 'Communication with WAHA failed while logging out of the session.', session: $session);
 
         return SessionData::fromArray($data);
     }
@@ -155,7 +155,7 @@ class SessionService
      */
     public function restartSession(WahaSession $session): SessionData
     {
-        $data = $this->send('post', "/api/sessions/{$this->session($session)}/restart", [], 'Communication with WAHA failed while restarting the session.');
+        $data = $this->send('post', '/api/sessions/{session}/restart', [], 'Communication with WAHA failed while restarting the session.', session: $session);
 
         return SessionData::fromArray($data);
     }

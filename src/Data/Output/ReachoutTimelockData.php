@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace DenLopes\Waha\Data\Output;
 
 use DenLopes\Waha\Data\WahaData;
+use DenLopes\Waha\Enums\WahaReachoutEnforcementTypeEnum;
 
 final readonly class ReachoutTimelockData extends WahaData
 {
     public function __construct(
-        public string $enforcementType,
+        public ?WahaReachoutEnforcementTypeEnum $enforcementType,
+        public string $enforcementTypeRaw,
         public bool $isActive,
         public ?int $timeEnforcementEnds,
     ) {}
@@ -21,8 +23,11 @@ final readonly class ReachoutTimelockData extends WahaData
      */
     public static function fromArray(array $data): static
     {
+        $enforcementTypeRaw = (string) ($data['enforcementType'] ?? '');
+
         return new self(
-            enforcementType: (string) ($data['enforcementType'] ?? ''),
+            enforcementType: WahaReachoutEnforcementTypeEnum::tryFrom($enforcementTypeRaw),
+            enforcementTypeRaw: $enforcementTypeRaw,
             isActive: (bool) ($data['isActive'] ?? false),
             timeEnforcementEnds: isset($data['timeEnforcementEnds'])
                 ? (int) $data['timeEnforcementEnds']

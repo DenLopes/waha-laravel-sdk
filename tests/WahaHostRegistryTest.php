@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace DenLopes\Waha\Tests;
 
+use DenLopes\Waha\Enums\WahaApiKeyModeEnum;
 use DenLopes\Waha\Exception\UnknownHostException;
 use DenLopes\Waha\Registry\ConfigHostRegistry;
 use DenLopes\Waha\Security\ConfigApiKeyProvider;
@@ -17,10 +18,10 @@ final class WahaHostRegistryTest extends WahaTestCase
         config()->set('waha.api_key', 'test-key');
         config()->set('waha.default_session', 'default');
 
-        $registry = new ConfigHostRegistry();
+        $registry = new ConfigHostRegistry;
 
-        $this->assertSame('http://waha.test', $registry->get('primary')['base_url']);
-        $this->assertSame('test-key', $registry->get('primary')['api_key']);
+        $this->assertSame('http://waha.test', $registry->get('primary')->baseUrl);
+        $this->assertSame('test-key', $registry->get('primary')->apiKey);
         $this->assertTrue($registry->exists('primary'));
     }
 
@@ -31,9 +32,9 @@ final class WahaHostRegistryTest extends WahaTestCase
             'secondary' => ['base_url' => 'http://secondary.test', 'api_key' => 's-key'],
         ]);
 
-        $registry = new ConfigHostRegistry();
+        $registry = new ConfigHostRegistry;
 
-        $this->assertSame('http://secondary.test', $registry->get('secondary')['base_url']);
+        $this->assertSame('http://secondary.test', $registry->get('secondary')->baseUrl);
         $this->assertFalse($registry->exists('missing'));
     }
 
@@ -44,7 +45,7 @@ final class WahaHostRegistryTest extends WahaTestCase
 
         $this->expectException(UnknownHostException::class);
 
-        (new ConfigHostRegistry())->get('missing');
+        (new ConfigHostRegistry)->get('missing');
     }
 
     public function test_api_key_provider_resolves_keys(): void
@@ -59,11 +60,11 @@ final class WahaHostRegistryTest extends WahaTestCase
             ],
         ]);
 
-        $keys = new ConfigApiKeyProvider(new ConfigHostRegistry());
+        $keys = new ConfigApiKeyProvider(new ConfigHostRegistry);
 
         $this->assertSame('admin-key', $keys->adminKey('primary'));
         $this->assertSame('sales-key', $keys->sessionKey('primary', 'sales'));
         $this->assertSame('X-Custom-Key', $keys->headerName('primary'));
-        $this->assertSame('strict_session_key', $keys->mode('primary'));
+        $this->assertSame(WahaApiKeyModeEnum::STRICT_SESSION_KEY, $keys->mode('primary'));
     }
 }

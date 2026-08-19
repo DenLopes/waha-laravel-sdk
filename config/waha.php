@@ -152,21 +152,21 @@ return [
 
         // Replay protection keyed by X-Webhook-Request-Id.
         'replay' => [
-            'enabled' => (bool) env('WAHA_WEBHOOKS_REPLAY_ENABLED', true),
-            'ttl_seconds' => (int) env('WAHA_WEBHOOKS_REPLAY_TTL_SECONDS', 900),
+            'enabled'      => (bool) env('WAHA_WEBHOOKS_REPLAY_ENABLED', true),
+            'ttl_seconds'  => (int) env('WAHA_WEBHOOKS_REPLAY_TTL_SECONDS', 900),
             'cache_prefix' => env('WAHA_WEBHOOKS_REPLAY_CACHE_PREFIX', 'waha:webhook:'),
         ],
 
         'route' => [
-            'prefix' => env('WAHA_WEBHOOKS_ROUTE_PREFIX', '/webhooks/waha'),
+            'prefix'     => env('WAHA_WEBHOOKS_ROUTE_PREFIX', '/webhooks/waha'),
             'middleware' => ['api'],
         ],
 
         'processing' => [
             // 'sync' runs handlers in the HTTP request; 'queue' defers to a job.
-            'mode' => env('WAHA_WEBHOOKS_PROCESSING_MODE', 'sync'),
+            'mode'             => env('WAHA_WEBHOOKS_PROCESSING_MODE', 'sync'),
             'queue_connection' => env('WAHA_WEBHOOKS_QUEUE_CONNECTION'),
-            'queue_name' => env('WAHA_WEBHOOKS_QUEUE_NAME', 'default'),
+            'queue_name'       => env('WAHA_WEBHOOKS_QUEUE_NAME', 'default'),
         ],
 
         // Persist verified deliveries to the waha_webhook_events table.

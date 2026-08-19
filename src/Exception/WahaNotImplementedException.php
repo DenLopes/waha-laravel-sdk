@@ -10,7 +10,7 @@ use Throwable;
  * Thrown when WAHA returns HTTP 501 — the requested endpoint is not implemented
  * by the currently configured engine (e.g. GOWS).
  */
-class WahaNotImplementedException extends WahaException
+class WahaNotImplementedException extends WahaApiException
 {
     public function __construct(
         string $message = 'The requested WAHA endpoint is not implemented by the current engine.',

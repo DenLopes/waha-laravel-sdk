@@ -9,7 +9,9 @@ use DenLopes\Waha\Contracts\HostRegistry;
 use DenLopes\Waha\Contracts\SessionRouter;
 use DenLopes\Waha\Contracts\WahaClientInterface;
 use DenLopes\Waha\Debug\WahaDebugStore;
+use DenLopes\Waha\Enums\WahaApiKeyModeEnum;
 use DenLopes\Waha\Exception\NoDataException;
+use DenLopes\Waha\Exception\WahaAuthenticationException;
 use DenLopes\Waha\Exception\WahaConnectionException;
 use DenLopes\Waha\Exception\WahaCredentialsException;
 use DenLopes\Waha\Exception\WahaException;
@@ -18,6 +20,7 @@ use DenLopes\Waha\Exception\WahaNotImplementedException;
 use DenLopes\Waha\Exception\WahaRateLimitException;
 use DenLopes\Waha\Exception\WahaRequestException;
 use DenLopes\Waha\Exception\WahaServerException;
+use DenLopes\Waha\Exception\WahaSessionNotFoundException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
@@ -27,11 +30,28 @@ use Throwable;
 
 class WahaRequest implements WahaClientInterface
 {
+    /**
+     * HTTP methods that are safe to retry automatically. Non-idempotent writes
+     * (e.g. POST /api/sendText) are never retried to avoid duplicate messages.
+     */
+    private const IDEMPOTENT_METHODS = ['GET', 'HEAD', 'PUT', 'DELETE'];
+
+    /**
+     * Global API roots that must not be classified as session-scoped endpoints.
+     * Used only to select the right 404 exception type.
+     */
+    private const GLOBAL_API_ROOTS = [
+        'send', 'keys', 'contacts', 'server', 'apps', 'messages', 'checkNumberStatus',
+        'screenshot', 'version', 'forwardMessage', 'reaction', 'star', 'sendPoll',
+        'sendPollVote', 'sendLocation', 'sendContactVcard', 'reply', 'sendLinkPreview',
+        'sendButtons', 'sendList', 'startTyping', 'stopTyping',
+    ];
+
     public function __construct(
-        private ?WahaDebugStore $debugStore = null,
-        private ?HostRegistry $hosts = null,
-        private ?ApiKeyProvider $keys = null,
-        private ?SessionRouter $router = null,
+        private readonly WahaDebugStore $debugStore,
+        private readonly HostRegistry $hosts,
+        private readonly ApiKeyProvider $keys,
+        private readonly SessionRouter $router,
     ) {}
 
     /**
@@ -134,6 +154,11 @@ class WahaRequest implements WahaClientInterface
             $client->asJson();
         }
 
+        // WAHA negotiates the binary vs JSON representation via the Accept header.
+        if ($expectedContentType !== null) {
+            $client->withHeaders(['Accept' => $expectedContentType]);
+        }
+
         $response = $this->sendRequest($method, $endpoint, $payload, [], $client, $authenticated, $session);
 
         if ($expectedContentType !== null) {
@@ -169,7 +194,7 @@ class WahaRequest implements WahaClientInterface
     {
         $hostKey = $this->resolveHostKey($session);
         $baseUrl = $this->resolveBaseUrl($hostKey);
-        $apiKey = (string) ($this->keys()->adminKey($hostKey) ?? '');
+        $apiKey = $this->resolveApiKey($hostKey, $session) ?? '';
 
         if ($authenticated && $apiKey === '') {
             $exception = new WahaCredentialsException;
@@ -187,7 +212,7 @@ class WahaRequest implements WahaClientInterface
 
         if ($apiKey !== '') {
             $client->withHeaders([
-                $this->keys()->headerName($hostKey) => $apiKey,
+                $this->keys->headerName($hostKey) => $apiKey,
             ]);
         }
 
@@ -200,30 +225,42 @@ class WahaRequest implements WahaClientInterface
 
     private function resolveHostKey(?string $session = null): string
     {
-        return $this->router()->resolveHostKey(null, $session);
+        return $this->router->resolveHostKey(null, $session);
     }
 
-    private function resolveBaseUrl(?string $hostKey = null): string
+    private function resolveBaseUrl(string $hostKey): string
     {
-        $hostKey ??= $this->resolveHostKey();
-        $host = $this->hosts()->get($hostKey);
-
-        return (string) ($host['base_url'] ?? config('waha.base_url', 'http://localhost:3000'));
+        return $this->hosts->get($hostKey)->baseUrl;
     }
 
-    private function hosts(): HostRegistry
+    /**
+     * Resolve the API key to use for a host/session pair.
+     *
+     * @throws WahaCredentialsException When strict session key mode is used without a session.
+     */
+    private function resolveApiKey(string $hostKey, ?string $session): ?string
     {
-        return $this->hosts ??= app(HostRegistry::class);
-    }
+        $mode = $this->keys->mode($hostKey);
 
-    private function keys(): ApiKeyProvider
-    {
-        return $this->keys ??= app(ApiKeyProvider::class);
-    }
+        if ($mode === WahaApiKeyModeEnum::STRICT_SESSION_KEY) {
+            if ($session === null || $session === '') {
+                throw new WahaCredentialsException(
+                    'A session name is required when the host uses strict_session_key mode.',
+                );
+            }
 
-    private function router(): SessionRouter
-    {
-        return $this->router ??= app(SessionRouter::class);
+            return $this->keys->sessionKey($hostKey, $session);
+        }
+
+        if ($session !== null && $session !== '') {
+            $sessionKey = $this->keys->sessionKey($hostKey, $session);
+
+            if ($sessionKey !== null) {
+                return $sessionKey;
+            }
+        }
+
+        return $this->keys->adminKey($hostKey);
     }
 
     /**
@@ -256,19 +293,23 @@ class WahaRequest implements WahaClientInterface
             $this->throwOnFailure($response, $method, $endpoint);
         } catch (Throwable $e) {
             $this->logRequestFailed($method, $endpoint, $payload, $e, $duration);
-            $this->captureDebug($method, $endpoint, $payload, $response, $duration, $session);
+            $this->captureDebug($method, $endpoint, $payload, $response, $duration, $query, $session);
 
             throw $e;
         }
 
         $this->logRequestCompleted($method, $endpoint, $response->status(), $duration);
-        $this->captureDebug($method, $endpoint, $payload, $response, $duration, $session);
+        $this->captureDebug($method, $endpoint, $payload, $response, $duration, $query, $session);
 
         return $response;
     }
 
     /**
      * Send a request, retrying transient connection failures and HTTP 429/5xx.
+     *
+     * Non-idempotent methods are never retried, even on connection errors, because
+     * a connection failure after the request was sent is ambiguous and retrying
+     * could duplicate the write.
      */
     private function sendWithRetry(string $method, string $endpoint, array $payload, PendingRequest $client): Response
     {
@@ -281,7 +322,7 @@ class WahaRequest implements WahaClientInterface
                     ? $client->send(strtoupper($method), $endpoint)
                     : $client->$method($endpoint, $payload);
             } catch (ConnectionException $e) {
-                if ($attempt === $attempts) {
+                if (!$this->isIdempotent($method) || $attempt === $attempts) {
                     throw new WahaConnectionException(
                         'Unable to connect to the WAHA server: '.$e->getMessage(),
                         0,
@@ -295,8 +336,8 @@ class WahaRequest implements WahaClientInterface
                 continue;
             }
 
-            if ($this->isTransient($response) && $attempt < $attempts) {
-                $this->sleepBeforeRetry($delayMs, $attempt);
+            if ($this->isTransient($method, $response) && $attempt < $attempts) {
+                $this->sleepBeforeRetry($delayMs, $attempt, $response);
 
                 continue;
             }
@@ -304,6 +345,7 @@ class WahaRequest implements WahaClientInterface
             return $response;
         }
 
+        // Defensive fallback; the loop returns or throws on every path above.
         throw new WahaConnectionException(
             'Unable to connect to the WAHA server.',
             0,
@@ -312,22 +354,41 @@ class WahaRequest implements WahaClientInterface
         );
     }
 
+    private function isIdempotent(string $method): bool
+    {
+        return in_array(strtoupper($method), self::IDEMPOTENT_METHODS, true);
+    }
+
     /**
      * Whether a response represents a transient failure worth retrying.
      */
-    private function isTransient(Response $response): bool
+    private function isTransient(string $method, Response $response): bool
     {
+        if (!$this->isIdempotent($method)) {
+            return false;
+        }
+
         return $response->tooManyRequests() || $response->serverError();
     }
 
     /**
-     * Sleep with exponential backoff before the next retry attempt.
+     * Sleep with exponential backoff (plus jitter) before the next retry attempt.
      */
-    private function sleepBeforeRetry(int $delayMs, int $attempt): void
+    private function sleepBeforeRetry(int $delayMs, int $attempt, ?Response $response = null): void
     {
         $backoffMs = $delayMs * (2 ** $attempt);
 
-        usleep($backoffMs * 1000);
+        if ($response !== null) {
+            $retryAfter = $response->header('Retry-After');
+
+            if (is_string($retryAfter) && ctype_digit($retryAfter)) {
+                $backoffMs = max($backoffMs, ((int) $retryAfter) * 1000);
+            }
+        }
+
+        $jitterMs = $backoffMs === 0 ? 0 : random_int(0, (int) ceil($backoffMs * 0.2));
+
+        usleep(($backoffMs + $jitterMs) * 1000);
     }
 
     /**
@@ -344,11 +405,13 @@ class WahaRequest implements WahaClientInterface
         $context = $this->requestContext($method, $endpoint, $status, substr((string) $response->body(), 0, 1000));
 
         if (in_array($status, [401, 403], true)) {
-            throw new WahaCredentialsException('WAHA authentication failed.', $status, null, $context);
+            throw new WahaAuthenticationException('WAHA authentication failed.', $status, null, $context);
         }
 
         if ($status === 404) {
-            throw new NoDataException('WAHA resource not found: '.$endpoint, 404, null, $context);
+            throw $this->isSessionScopedEndpoint($endpoint)
+                ? new WahaSessionNotFoundException('WAHA session not found: '.$endpoint, 404, null, $context)
+                : new NoDataException('WAHA resource not found: '.$endpoint, 404, null, $context);
         }
 
         if ($status === 429) {
@@ -376,12 +439,41 @@ class WahaRequest implements WahaClientInterface
     }
 
     /**
+     * Whether a 404 should be attributed to a missing session rather than a
+     * missing (non-session) resource.
+     */
+    private function isSessionScopedEndpoint(string $endpoint): bool
+    {
+        // `/api/sessions/{session}...` — exclude the deprecated global actions.
+        if (preg_match('#^/api/sessions/(?!start$|stop$|logout$)#', $endpoint) === 1) {
+            return true;
+        }
+
+        // `/api/{session}/...` — a session name occupies the first segment after /api.
+        foreach (self::GLOBAL_API_ROOTS as $root) {
+            if (str_starts_with($endpoint, '/api/'.$root)) {
+                return false;
+            }
+        }
+
+        return str_starts_with($endpoint, '/api/');
+    }
+
+    /**
      * Log the outgoing request (method, endpoint, masked payload and query).
      */
     private function logRequestStart(string $method, string $endpoint, array $payload, array $query, bool $authenticated, ?string $session = null): void
     {
+        $baseUrl = null;
+
+        try {
+            $baseUrl = $this->resolveBaseUrl($this->resolveHostKey($session));
+        } catch (WahaException) {
+            $baseUrl = null;
+        }
+
         Log::channel('waha')->info('Sending request to WAHA API', [
-            'base_url'      => $this->resolveBaseUrl($this->resolveHostKey($session)),
+            'base_url'      => $baseUrl,
             'method'        => strtoupper($method),
             'endpoint'      => $endpoint,
             'payload'       => $this->maskSensitiveData($payload),
@@ -477,13 +569,17 @@ class WahaRequest implements WahaClientInterface
     /**
      * Record the last masked request/response for debugging.
      */
-    private function captureDebug(string $method, string $endpoint, array $payload, Response $response, float $durationSeconds, ?string $session = null): void
+    private function captureDebug(string $method, string $endpoint, array $payload, Response $response, float $durationSeconds, array $query = [], ?string $session = null): void
     {
-        $this->debugStore?->setLast([
+        $hostKey = $this->resolveHostKey($session);
+
+        $this->debugStore->setLast([
             'request' => [
                 'method'  => strtoupper($method),
-                'url'     => $this->resolveBaseUrl($this->resolveHostKey($session)).$endpoint,
+                'url'     => $this->resolveBaseUrl($hostKey).$endpoint,
+                'headers' => $this->debugHeaders($hostKey),
                 'payload' => $this->maskSensitiveData($payload),
+                'query'   => $query,
             ],
             'response' => [
                 'status' => $response->status(),
@@ -491,6 +587,24 @@ class WahaRequest implements WahaClientInterface
             ],
             'duration_ms' => (int) round($durationSeconds * 1000),
         ]);
+    }
+
+    /**
+     * Headers to include in debug output, with the API key redacted.
+     *
+     * @return array<string, string>
+     */
+    private function debugHeaders(string $hostKey): array
+    {
+        $apiKey = $this->keys->adminKey($hostKey);
+
+        if ($apiKey === null || $apiKey === '') {
+            return [];
+        }
+
+        return [
+            $this->keys->headerName($hostKey) => '[REDACTED]',
+        ];
     }
 
     /**

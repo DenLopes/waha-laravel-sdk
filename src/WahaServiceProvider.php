@@ -41,11 +41,11 @@ class WahaServiceProvider extends ServiceProvider
         $this->app->bind(ApiKeyProvider::class, ConfigApiKeyProvider::class);
         $this->app->bind(PinStore::class, fn () => new DbPinStore);
 
-        $this->app->bind(SessionRouter::class, function () {
+        $this->app->bind(SessionRouter::class, function ($app) {
             $defaultHost = (string) config('waha.default_host', 'primary');
 
             return (string) config('waha.routing.driver', 'none') === 'pin'
-                ? new PinningRouter(app(PinStore::class), $defaultHost)
+                ? new PinningRouter($app->make(PinStore::class), $defaultHost)
                 : new NullRouter($defaultHost);
         });
 
@@ -81,7 +81,7 @@ class WahaServiceProvider extends ServiceProvider
     {
         $webhooks = (array) config('waha.webhooks', []);
 
-        if (! (bool) ($webhooks['enabled'] ?? true)) {
+        if (!(bool) ($webhooks['enabled'] ?? true)) {
             return;
         }
 

@@ -6,8 +6,8 @@ namespace DenLopes\Waha\Services;
 
 use DenLopes\Waha\Concerns\SendsWahaRequests;
 use DenLopes\Waha\Data\Input\OverviewBodyRequestData;
-use DenLopes\Waha\Data\Output\ChatPictureData;
 use DenLopes\Waha\Data\Output\ChatData;
+use DenLopes\Waha\Data\Output\ChatPictureData;
 use DenLopes\Waha\Data\Output\ChatSummaryData;
 use DenLopes\Waha\Data\Output\ReadChatMessagesData;
 use DenLopes\Waha\Data\Output\WAMessageData;
@@ -56,7 +56,7 @@ class ChatsService
             $payload['offset'] = $offset;
         }
 
-        $data = $this->send('get', "/api/{$this->session($session)}/chats", $payload, 'Communication with WAHA failed while fetching chats.');
+        $data = $this->send('get', '/api/{session}/chats', $payload, 'Communication with WAHA failed while fetching chats.', session: $session);
 
         return array_map(
             static fn (array $item) => ChatData::fromArray($item),
@@ -94,7 +94,7 @@ class ChatsService
             $payload['ids'] = $ids;
         }
 
-        $data = $this->send('get', "/api/{$this->session($session)}/chats/overview", $payload, 'Communication with WAHA failed while fetching the chats overview.');
+        $data = $this->send('get', '/api/{session}/chats/overview', $payload, 'Communication with WAHA failed while fetching the chats overview.', session: $session);
 
         return array_map(
             static fn (array $item) => ChatSummaryData::fromArray($item),
@@ -107,9 +107,9 @@ class ChatsService
      */
     public function getChatPicture(WahaSession $session, string $chatId, bool $refresh = false): ChatPictureData
     {
-        $data = $this->send('get', "/api/{$this->session($session)}/chats/{$chatId}/picture", [
+        $data = $this->send('get', "/api/{session}/chats/{$chatId}/picture", [
             'refresh' => $refresh,
-        ], 'Communication with WAHA failed while fetching the chat picture.');
+        ], 'Communication with WAHA failed while fetching the chat picture.', session: $session);
 
         return ChatPictureData::fromArray($data);
     }
@@ -173,9 +173,10 @@ class ChatsService
 
         $data = $this->send(
             'get',
-            "/api/{$this->session($session)}/chats/{$chatId}/messages",
+            "/api/{session}/chats/{$chatId}/messages",
             $payload,
             'Communication with WAHA failed while fetching chat messages.',
+            session: $session,
         );
 
         return array_map(
@@ -206,9 +207,10 @@ class ChatsService
 
         $data = $this->send(
             'get',
-            "/api/{$this->session($session)}/chats/{$chatId}/messages/{$messageId}",
+            "/api/{session}/chats/{$chatId}/messages/{$messageId}",
             $payload,
             'Communication with WAHA failed while fetching the chat message.',
+            session: $session,
         );
 
         return WAMessageData::fromArray($data);
@@ -237,9 +239,10 @@ class ChatsService
 
         return $this->send(
             'put',
-            "/api/{$this->session($session)}/chats/{$chatId}/messages/{$messageId}",
+            "/api/{session}/chats/{$chatId}/messages/{$messageId}",
             $payload,
             'Communication with WAHA failed while editing the message.',
+            session: $session,
         );
     }
 
@@ -248,7 +251,7 @@ class ChatsService
      */
     public function deleteMessage(WahaSession $session, string $chatId, string $messageId): array
     {
-        return $this->send('delete', "/api/{$this->session($session)}/chats/{$chatId}/messages/{$messageId}", [], 'Communication with WAHA failed while deleting the message.');
+        return $this->send('delete', "/api/{session}/chats/{$chatId}/messages/{$messageId}", [], 'Communication with WAHA failed while deleting the message.', session: $session);
     }
 
     /**
@@ -256,7 +259,7 @@ class ChatsService
      */
     public function clearMessages(WahaSession $session, string $chatId): array
     {
-        return $this->send('delete', "/api/{$this->session($session)}/chats/{$chatId}/messages", [], 'Communication with WAHA failed while clearing the chat messages.');
+        return $this->send('delete', "/api/{session}/chats/{$chatId}/messages", [], 'Communication with WAHA failed while clearing the chat messages.', session: $session);
     }
 
     /**
@@ -280,10 +283,11 @@ class ChatsService
 
         $data = $this->send(
             'post',
-            "/api/{$this->session($session)}/chats/{$chatId}/messages/read",
+            "/api/{session}/chats/{$chatId}/messages/read",
             [],
             'Communication with WAHA failed while reading the chat messages.',
             $query,
+            session: $session,
         );
 
         return ReadChatMessagesData::fromArray($data);
@@ -294,9 +298,9 @@ class ChatsService
      */
     public function pinMessage(WahaSession $session, string $chatId, string $messageId, int $duration = 86400): array
     {
-        return $this->send('post', "/api/{$this->session($session)}/chats/{$chatId}/messages/{$messageId}/pin", [
+        return $this->send('post', "/api/{session}/chats/{$chatId}/messages/{$messageId}/pin", [
             'duration' => $duration,
-        ], 'Communication with WAHA failed while pinning the message.');
+        ], 'Communication with WAHA failed while pinning the message.', session: $session);
     }
 
     /**
@@ -304,7 +308,7 @@ class ChatsService
      */
     public function unpinMessage(WahaSession $session, string $chatId, string $messageId): array
     {
-        return $this->send('post', "/api/{$this->session($session)}/chats/{$chatId}/messages/{$messageId}/unpin", [], 'Communication with WAHA failed while unpinning the message.');
+        return $this->send('post', "/api/{session}/chats/{$chatId}/messages/{$messageId}/unpin", [], 'Communication with WAHA failed while unpinning the message.', session: $session);
     }
 
     /**
@@ -312,7 +316,7 @@ class ChatsService
      */
     public function archiveChat(WahaSession $session, string $chatId): array
     {
-        return $this->send('post', "/api/{$this->session($session)}/chats/{$chatId}/archive", [], 'Communication with WAHA failed while archiving the chat.');
+        return $this->send('post', "/api/{session}/chats/{$chatId}/archive", [], 'Communication with WAHA failed while archiving the chat.', session: $session);
     }
 
     /**
@@ -320,7 +324,7 @@ class ChatsService
      */
     public function unarchiveChat(WahaSession $session, string $chatId): array
     {
-        return $this->send('post', "/api/{$this->session($session)}/chats/{$chatId}/unarchive", [], 'Communication with WAHA failed while unarchiving the chat.');
+        return $this->send('post', "/api/{session}/chats/{$chatId}/unarchive", [], 'Communication with WAHA failed while unarchiving the chat.', session: $session);
     }
 
     /**
@@ -328,7 +332,7 @@ class ChatsService
      */
     public function unreadChat(WahaSession $session, string $chatId): array
     {
-        return $this->send('post', "/api/{$this->session($session)}/chats/{$chatId}/unread", [], 'Communication with WAHA failed while marking the chat as unread.');
+        return $this->send('post', "/api/{session}/chats/{$chatId}/unread", [], 'Communication with WAHA failed while marking the chat as unread.', session: $session);
     }
 
     /**
@@ -336,7 +340,7 @@ class ChatsService
      */
     public function deleteChat(WahaSession $session, string $chatId): array
     {
-        return $this->send('delete', "/api/{$this->session($session)}/chats/{$chatId}", [], 'Communication with WAHA failed while deleting the chat.');
+        return $this->send('delete', "/api/{session}/chats/{$chatId}", [], 'Communication with WAHA failed while deleting the chat.', session: $session);
     }
 
     /**
@@ -346,7 +350,7 @@ class ChatsService
      */
     public function getChatsOverviewPost(WahaSession $session, OverviewBodyRequestData $request): array
     {
-        $data = $this->send('post', "/api/{$this->session($session)}/chats/overview", $request->toArray(), 'Communication with WAHA failed while fetching the chats overview.');
+        $data = $this->send('post', '/api/{session}/chats/overview', $request->toArray(), 'Communication with WAHA failed while fetching the chats overview.', session: $session);
 
         return array_map(
             static fn (array $item) => ChatSummaryData::fromArray($item),

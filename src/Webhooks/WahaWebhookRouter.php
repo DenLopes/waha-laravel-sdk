@@ -28,14 +28,14 @@ final class WahaWebhookRouter
         $handlerClass = $this->resolveHandlerClass($event->eventName());
 
         if ($handlerClass === null) {
-            (new NullWebhookHandler())->handle($event);
+            (new NullWebhookHandler)->handle($event);
 
             return;
         }
 
         $handler = $this->container->make($handlerClass);
 
-        if (! $handler instanceof WahaWebhookHandler) {
+        if (!$handler instanceof WahaWebhookHandler) {
             throw new WahaWebhookException("Webhook handler must implement WahaWebhookHandler: {$handlerClass}");
         }
 
@@ -52,7 +52,7 @@ final class WahaWebhookRouter
         }
 
         foreach ($map as $key => $class) {
-            if (! is_string($key) || ! str_ends_with($key, '.*')) {
+            if (!is_string($key) || !str_ends_with($key, '.*')) {
                 continue;
             }
 

@@ -9,7 +9,7 @@ use Throwable;
 /**
  * Thrown when WAHA rejects the request as invalid (HTTP 400/422).
  */
-class WahaRequestException extends WahaException
+class WahaRequestException extends WahaApiException
 {
     public function __construct(
         string $message = 'WAHA rejected the request.',

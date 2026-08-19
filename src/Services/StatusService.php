@@ -22,7 +22,7 @@ class StatusService
      */
     public function sendTextStatus(WahaSession $session, TextStatusData $payload): array
     {
-        return $this->send('post', "/api/{$this->session($session)}/status/text", $payload->toArray(), 'Communication with WAHA failed while sending the text status.');
+        return $this->send('post', '/api/{session}/status/text', $payload->toArray(), 'Communication with WAHA failed while sending the text status.', session: $session);
     }
 
     /**
@@ -30,7 +30,7 @@ class StatusService
      */
     public function sendImageStatus(WahaSession $session, ImageStatusData $payload): array
     {
-        return $this->send('post', "/api/{$this->session($session)}/status/image", $payload->toArray(), 'Communication with WAHA failed while sending the image status.');
+        return $this->send('post', '/api/{session}/status/image', $payload->toArray(), 'Communication with WAHA failed while sending the image status.', session: $session);
     }
 
     /**
@@ -38,7 +38,7 @@ class StatusService
      */
     public function sendVoiceStatus(WahaSession $session, VoiceStatusData $payload): array
     {
-        return $this->send('post', "/api/{$this->session($session)}/status/voice", $payload->toArray(), 'Communication with WAHA failed while sending the voice status.');
+        return $this->send('post', '/api/{session}/status/voice', $payload->toArray(), 'Communication with WAHA failed while sending the voice status.', session: $session);
     }
 
     /**
@@ -46,7 +46,7 @@ class StatusService
      */
     public function sendVideoStatus(WahaSession $session, VideoStatusData $payload): array
     {
-        return $this->send('post', "/api/{$this->session($session)}/status/video", $payload->toArray(), 'Communication with WAHA failed while sending the video status.');
+        return $this->send('post', '/api/{session}/status/video', $payload->toArray(), 'Communication with WAHA failed while sending the video status.', session: $session);
     }
 
     /**
@@ -54,7 +54,7 @@ class StatusService
      */
     public function deleteStatus(WahaSession $session, DeleteStatusData $payload): array
     {
-        return $this->send('post', "/api/{$this->session($session)}/status/delete", $payload->toArray(), 'Communication with WAHA failed while deleting the status.');
+        return $this->send('post', '/api/{session}/status/delete', $payload->toArray(), 'Communication with WAHA failed while deleting the status.', session: $session);
     }
 
     /**
@@ -62,7 +62,7 @@ class StatusService
      */
     public function getNewStatusMessageId(WahaSession $session): NewMessageIdData
     {
-        $data = $this->send('get', "/api/{$this->session($session)}/status/new-message-id", [], 'Communication with WAHA failed while generating the status message ID.');
+        $data = $this->send('get', '/api/{session}/status/new-message-id', [], 'Communication with WAHA failed while generating the status message ID.', session: $session);
 
         return NewMessageIdData::fromArray($data);
     }

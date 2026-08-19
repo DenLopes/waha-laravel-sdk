@@ -27,7 +27,7 @@ class PresenceService
             $payload['chatId'] = $chatId;
         }
 
-        return $this->send('post', "/api/{$this->session($session)}/presence", $payload, 'Communication with WAHA failed while setting presence.');
+        return $this->send('post', '/api/{session}/presence', $payload, 'Communication with WAHA failed while setting presence.', session: $session);
     }
 
     /**
@@ -35,7 +35,7 @@ class PresenceService
      */
     public function getPresence(WahaSession $session, string $chatId): WAHAChatPresencesData
     {
-        $data = $this->send('get', "/api/{$this->session($session)}/presence/{$chatId}", [], 'Communication with WAHA failed while fetching presence.');
+        $data = $this->send('get', "/api/{session}/presence/{$chatId}", [], 'Communication with WAHA failed while fetching presence.', session: $session);
 
         return WAHAChatPresencesData::fromArray($data);
     }
@@ -45,7 +45,7 @@ class PresenceService
      */
     public function getPresenceAll(WahaSession $session): array
     {
-        $data = $this->send('get', "/api/{$this->session($session)}/presence", [], 'Communication with WAHA failed while fetching presence.');
+        $data = $this->send('get', '/api/{session}/presence', [], 'Communication with WAHA failed while fetching presence.', session: $session);
 
         return array_map(
             static fn (array $item) => WAHAChatPresencesData::fromArray($item),
@@ -58,6 +58,6 @@ class PresenceService
      */
     public function subscribePresence(WahaSession $session, string $chatId): array
     {
-        return $this->send('post', "/api/{$this->session($session)}/presence/{$chatId}/subscribe", [], 'Communication with WAHA failed while subscribing to presence.');
+        return $this->send('post', "/api/{session}/presence/{$chatId}/subscribe", [], 'Communication with WAHA failed while subscribing to presence.', session: $session);
     }
 }

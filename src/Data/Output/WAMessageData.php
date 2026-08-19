@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace DenLopes\Waha\Data\Output;
 
 use DenLopes\Waha\Data\WahaData;
+use DenLopes\Waha\Enums\WahaAckCodeEnum;
 use DenLopes\Waha\Enums\WahaMessageSourceEnum;
 
 final readonly class WAMessageData extends WahaData
@@ -25,7 +26,7 @@ final readonly class WAMessageData extends WahaData
         public ?bool $hasMedia,
         public ?WAMediaData $media,
         public ?string $mediaUrl,
-        public ?int $ack,
+        public ?WahaAckCodeEnum $ack,
         public ?string $ackName,
         public ?string $author,
         public ?WALocationData $location,
@@ -55,7 +56,7 @@ final readonly class WAMessageData extends WahaData
                 ? WAMediaData::fromArray($data['media'])
                 : null,
             mediaUrl: isset($data['mediaUrl']) ? (string) $data['mediaUrl'] : null,
-            ack: isset($data['ack']) ? (int) $data['ack'] : null,
+            ack: isset($data['ack']) ? WahaAckCodeEnum::tryFrom((int) $data['ack']) : null,
             ackName: isset($data['ackName']) ? (string) $data['ackName'] : null,
             author: isset($data['author']) ? (string) $data['author'] : null,
             location: isset($data['location']) && is_array($data['location'])
@@ -64,8 +65,8 @@ final readonly class WAMessageData extends WahaData
             replyTo: isset($data['replyTo']) && is_array($data['replyTo'])
                 ? ReplyToMessageData::fromArray($data['replyTo'])
                 : null,
-            vCards: $data['vCards'] ?? null,
-            raw: $data['_data'] ?? null,
+            vCards: self::arrayValue($data, 'vCards'),
+            raw: self::arrayValue($data, '_data'),
         );
     }
 }

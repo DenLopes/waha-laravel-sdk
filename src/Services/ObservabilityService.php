@@ -120,9 +120,9 @@ class ObservabilityService
      */
     public function getBrowserTrace(WahaSession $session, int $seconds = 30, array $categories = ['*']): string
     {
-        return $this->download("/api/server/debug/browser/trace/{$this->session($session)}", [
+        return $this->download('/api/server/debug/browser/trace/{session}', [
             'seconds'    => $seconds,
             'categories' => $categories,
-        ], 'Communication with WAHA failed while collecting the browser trace.');
+        ], 'Communication with WAHA failed while collecting the browser trace.', session: $session);
     }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace DenLopes\Waha\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 
 /**
  * A WAHA server definition, used by the DB host registry.
@@ -19,8 +20,8 @@ use Illuminate\Database\Eloquent\Model;
  * @property array|null $session_keys
  * @property string|null $webhook_secret
  * @property bool $is_active
- * @property \Illuminate\Support\Carbon|null $created_at
- * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
  */
 class WahaHost extends Model
 {

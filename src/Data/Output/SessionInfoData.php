@@ -43,9 +43,9 @@ final readonly class SessionInfoData extends WahaData
             me: isset($data['me']) && is_array($data['me'])
                 ? MeInfoData::fromArray($data['me'])
                 : null,
-            assignedWorker: $data['assignedWorker'] ?? null,
-            presence: $data['presence'] ?? null,
-            timestamps: $data['timestamps'] ?? null,
+            assignedWorker: self::string($data, 'assignedWorker'),
+            presence: self::arrayValue($data, 'presence'),
+            timestamps: self::arrayValue($data, 'timestamps'),
             status: WahaSessionStatusEnum::tryFrom((string) ($data['status'] ?? '')),
             config: isset($data['config']) && is_array($data['config'])
                 ? SessionConfigData::fromArray($data['config'])

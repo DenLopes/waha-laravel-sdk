@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace DenLopes\Waha\Contracts;
 
+use DenLopes\Waha\Http\WahaRequest;
+
 /**
  * The HTTP transport contract for the WAHA API.
  *
- * This is the seam services depend on instead of the concrete {@see \DenLopes\Waha\Http\WahaRequest},
+ * This is the seam services depend on instead of the concrete {@see WahaRequest},
  * so tests can bind a fake implementation and exercise services without hitting
  * a real WAHA server.
  */

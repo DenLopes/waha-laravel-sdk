@@ -4,18 +4,17 @@ declare(strict_types=1);
 
 namespace DenLopes\Waha\Contracts;
 
+use DenLopes\Waha\Data\WahaHostConfigData;
+
 /**
  * Provides host definitions (base_url, api_key, default_session, mode, ...).
  */
 interface HostRegistry
 {
-    /**
-     * @return array<string, mixed>
-     */
-    public function get(string $hostKey): array;
+    public function get(string $hostKey): WahaHostConfigData;
 
     /**
-     * @return array<string, array<string, mixed>>
+     * @return array<string, WahaHostConfigData>
      */
     public function all(): array;
 

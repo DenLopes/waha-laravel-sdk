@@ -27,7 +27,7 @@ class MediaService
      */
     public function convertVoice(WahaSession $session, VoiceFileData $file, bool $asBase64 = false): string|Base64FileData
     {
-        $endpoint = "/api/{$this->session($session)}/media/convert/voice";
+        $endpoint = '/api/{session}/media/convert/voice';
 
         if ($asBase64) {
             $data = $this->send(
@@ -35,6 +35,7 @@ class MediaService
                 $endpoint,
                 $file->toArray(),
                 'Communication with WAHA failed while converting the voice file.',
+                session: $session,
             );
 
             return Base64FileData::fromArray($data);
@@ -45,6 +46,7 @@ class MediaService
             $file->toArray(),
             'Communication with WAHA failed while converting the voice file.',
             'audio/ogg',
+            session: $session,
         );
     }
 
@@ -61,7 +63,7 @@ class MediaService
      */
     public function convertVideo(WahaSession $session, VideoFileData $file, bool $asBase64 = false): string|Base64FileData
     {
-        $endpoint = "/api/{$this->session($session)}/media/convert/video";
+        $endpoint = '/api/{session}/media/convert/video';
 
         if ($asBase64) {
             $data = $this->send(
@@ -69,6 +71,7 @@ class MediaService
                 $endpoint,
                 $file->toArray(),
                 'Communication with WAHA failed while converting the video file.',
+                session: $session,
             );
 
             return Base64FileData::fromArray($data);
@@ -79,6 +82,7 @@ class MediaService
             $file->toArray(),
             'Communication with WAHA failed while converting the video file.',
             'video/mp4',
+            session: $session,
         );
     }
 }

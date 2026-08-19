@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace DenLopes\Waha\Registry;
 
 use DenLopes\Waha\Contracts\HostRegistry;
+use DenLopes\Waha\Data\WahaHostConfigData;
 use DenLopes\Waha\Exception\UnknownHostException;
 use DenLopes\Waha\Models\WahaHost;
 
@@ -13,23 +14,26 @@ use DenLopes\Waha\Models\WahaHost;
  */
 final class DbHostRegistry implements HostRegistry
 {
-    public function get(string $hostKey): array
+    public function get(string $hostKey): WahaHostConfigData
     {
         $hosts = $this->all();
 
-        if (! isset($hosts[$hostKey])) {
+        if (!isset($hosts[$hostKey])) {
             throw new UnknownHostException("Unknown WAHA host: {$hostKey}");
         }
 
         return $hosts[$hostKey];
     }
 
+    /**
+     * @return array<string, WahaHostConfigData>
+     */
     public function all(): array
     {
         return WahaHost::query()
             ->where('is_active', true)
             ->get()
-            ->mapWithKeys(fn (WahaHost $host): array => [$host->key => [
+            ->mapWithKeys(fn (WahaHost $host): array => [$host->key => WahaHostConfigData::fromArray([
                 'base_url'        => $host->base_url,
                 'api_key'         => $host->api_key,
                 'api_key_header'  => $host->api_key_header,
@@ -37,7 +41,7 @@ final class DbHostRegistry implements HostRegistry
                 'mode'            => $host->mode,
                 'session_keys'    => $host->session_keys ?? [],
                 'webhook_secret'  => $host->webhook_secret,
-            ]])
+            ])])
             ->all();
     }
 

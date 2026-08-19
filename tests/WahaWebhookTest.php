@@ -18,7 +18,7 @@ final class WahaWebhookTest extends TestCase
         $body = '{"event":"message"}';
         $signature = hash_hmac('sha512', $body, $secret);
 
-        (new WebhookVerifier())->verify($secret, $body, $signature, 'sha512');
+        (new WebhookVerifier)->verify($secret, $body, $signature, 'sha512');
 
         $this->addToAssertionCount(1);
     }
@@ -31,7 +31,7 @@ final class WahaWebhookTest extends TestCase
         $this->expectException(WahaWebhookException::class);
         $this->expectExceptionMessage('Invalid webhook signature.');
 
-        (new WebhookVerifier())->verify('wrong-secret', $body, $signature, 'sha512');
+        (new WebhookVerifier)->verify('wrong-secret', $body, $signature, 'sha512');
     }
 
     public function test_verifier_rejects_unknown_algorithm(): void
@@ -42,7 +42,7 @@ final class WahaWebhookTest extends TestCase
         $this->expectException(WahaWebhookException::class);
         $this->expectExceptionMessage('Unsupported webhook signature algorithm.');
 
-        (new WebhookVerifier())->verify('secret', $body, $signature, 'sha1');
+        (new WebhookVerifier)->verify('secret', $body, $signature, 'sha1');
     }
 
     public function test_verifier_accepts_prefixed_signature(): void
@@ -51,7 +51,7 @@ final class WahaWebhookTest extends TestCase
         $body = 'payload';
         $signature = 'sha512='.hash_hmac('sha512', $body, $secret);
 
-        (new WebhookVerifier())->verify($secret, $body, $signature, 'sha512');
+        (new WebhookVerifier)->verify($secret, $body, $signature, 'sha512');
 
         $this->addToAssertionCount(1);
     }

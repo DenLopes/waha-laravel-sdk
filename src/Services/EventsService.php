@@ -31,7 +31,7 @@ class EventsService
             $payload['reply_to'] = $replyTo;
         }
 
-        $data = $this->send('post', "/api/{$this->session($session)}/events", $payload, 'Communication with WAHA failed while sending the event.');
+        $data = $this->send('post', '/api/{session}/events', $payload, 'Communication with WAHA failed while sending the event.', session: $session);
 
         return WAMessageData::fromArray($data);
     }

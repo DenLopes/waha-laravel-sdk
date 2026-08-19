@@ -20,10 +20,10 @@ class LidsService
      */
     public function getAll(WahaSession $session, int $limit = 100, int $offset = 0): array
     {
-        $data = $this->send('get', "/api/{$this->session($session)}/lids", [
+        $data = $this->send('get', '/api/{session}/lids', [
             'limit'  => $limit,
             'offset' => $offset,
-        ], 'Communication with WAHA failed while listing lids.');
+        ], 'Communication with WAHA failed while listing lids.', session: $session);
 
         return array_map(
             static fn (array $item) => LidToPhoneNumberData::fromArray($item),
@@ -36,7 +36,7 @@ class LidsService
      */
     public function getCount(WahaSession $session): CountResponseData
     {
-        $data = $this->send('get', "/api/{$this->session($session)}/lids/count", [], 'Communication with WAHA failed while counting lids.');
+        $data = $this->send('get', '/api/{session}/lids/count', [], 'Communication with WAHA failed while counting lids.', session: $session);
 
         return CountResponseData::fromArray($data);
     }
@@ -46,7 +46,7 @@ class LidsService
      */
     public function findPhoneNumberByLid(WahaSession $session, string $lid): LidToPhoneNumberData
     {
-        $data = $this->send('get', "/api/{$this->session($session)}/lids/{$lid}", [], 'Communication with WAHA failed while finding the phone number by lid.');
+        $data = $this->send('get', "/api/{session}/lids/{$lid}", [], 'Communication with WAHA failed while finding the phone number by lid.', session: $session);
 
         return LidToPhoneNumberData::fromArray($data);
     }
@@ -56,7 +56,7 @@ class LidsService
      */
     public function findLidByPhoneNumber(WahaSession $session, string $phoneNumber): LidToPhoneNumberData
     {
-        $data = $this->send('get', "/api/{$this->session($session)}/lids/pn/{$phoneNumber}", [], 'Communication with WAHA failed while finding the lid by phone number.');
+        $data = $this->send('get', "/api/{session}/lids/pn/{$phoneNumber}", [], 'Communication with WAHA failed while finding the lid by phone number.', session: $session);
 
         return LidToPhoneNumberData::fromArray($data);
     }

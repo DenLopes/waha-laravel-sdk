@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace DenLopes\Waha\Tests;
 
+use DenLopes\Waha\Contracts\PinStore;
 use DenLopes\Waha\Data\Input\LinkPreviewData;
 use DenLopes\Waha\Data\Input\RemoteFileData;
 use DenLopes\Waha\Data\Input\SendListMessageData;
+use DenLopes\Waha\Debug\WahaDebugStore;
 use DenLopes\Waha\Fluent\WahaChat;
 use DenLopes\Waha\Fluent\WahaManager;
 use DenLopes\Waha\Fluent\WahaMessage;
@@ -51,7 +53,7 @@ final class WahaFluentTest extends TestCase
     public function test_message_can_be_pinned_unpinned_and_forwarded(): void
     {
         $fake = new FakeWahaClient([
-            'id' => 'false_22222222222@c.us_ABC',
+            'id'     => 'false_22222222222@c.us_ABC',
             'fromMe' => true,
         ]);
 
@@ -127,7 +129,25 @@ final class WahaFluentTest extends TestCase
 
     public function test_manager_accepts_string_or_value_object_session(): void
     {
-        $manager = new WahaManager();
+        $fake = new FakeWahaClient;
+        $pins = new class implements PinStore
+        {
+            public function getHostForSession(string $sessionName): ?string
+            {
+                return null;
+            }
+
+            public function pin(string $sessionName, string $hostKey, ?int $ttlSeconds = null): void {}
+
+            public function forget(string $sessionName): void {}
+        };
+
+        $manager = new WahaManager(
+            new ChattingService($fake),
+            new ChatsService($fake),
+            $pins,
+            new WahaDebugStore,
+        );
 
         $this->assertSame('sales', $manager->chat('11111111111@c.us', 'sales')->session()->value());
         $this->assertSame('sales', $manager->chat('11111111111@c.us', WahaSession::from('sales'))->session()->value());
@@ -140,9 +160,9 @@ final class WahaFluentTest extends TestCase
     private function makeChat(): array
     {
         $fake = new FakeWahaClient([
-            'id' => 'false_11111111111@c.us_ABC',
+            'id'     => 'false_11111111111@c.us_ABC',
             'fromMe' => true,
-            'body' => 'Hello',
+            'body'   => 'Hello',
         ]);
 
         $chat = new WahaChat(

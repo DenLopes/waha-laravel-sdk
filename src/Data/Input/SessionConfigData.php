@@ -30,11 +30,11 @@ final readonly class SessionConfigData extends WahaData
     public static function fromArray(array $data): static
     {
         return new self(
-            metadata: $data['metadata'] ?? null,
+            metadata: self::arrayValue($data, 'metadata'),
             proxy: isset($data['proxy']) && is_array($data['proxy'])
                 ? ProxyConfigData::fromArray($data['proxy'])
                 : null,
-            debug: $data['debug'] ?? null,
+            debug: self::boolValue($data, 'debug'),
             ignore: isset($data['ignore']) && is_array($data['ignore'])
                 ? IgnoreConfigData::fromArray($data['ignore'])
                 : null,

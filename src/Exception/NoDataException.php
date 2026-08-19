@@ -9,7 +9,7 @@ use Throwable;
 /**
  * Thrown when the requested WAHA resource does not exist (HTTP 404).
  */
-class NoDataException extends WahaException
+class NoDataException extends WahaApiException
 {
     public function __construct(
         string $message = 'No data found for the requested resource.',

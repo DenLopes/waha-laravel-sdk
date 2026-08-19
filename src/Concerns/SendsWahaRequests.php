@@ -26,12 +26,59 @@ trait SendsWahaRequests
     public function __construct(protected WahaClientInterface $wahaRequest) {}
 
     /**
-     * Resolve a session name to its string value, falling back to the
-     * configured default when no explicit session is provided.
+     * Resolve a session to its normalized name, falling back to the configured
+     * default session when none is provided.
      */
-    protected function session(?WahaSession $session = null): string
+    protected function session(WahaSession|string|null $session = null): string
     {
-        return ($session ?? WahaSession::default())->value();
+        return $this->resolveSession($session);
+    }
+
+    /**
+     * Normalize a WahaSession object, raw session name, or null into a string.
+     */
+    private function resolveSession(WahaSession|string|null $session = null): string
+    {
+        if ($session instanceof WahaSession) {
+            return $session->value();
+        }
+
+        if (is_string($session) && trim($session) !== '') {
+            return WahaSession::from($session)->value();
+        }
+
+        return WahaSession::default()->value();
+    }
+
+    /**
+     * Substitute the `{session}` placeholder in a path-based endpoint and
+     * determine the session name used for host routing.
+     *
+     * Precedence:
+     *   1. Path endpoints (`{session}` placeholder) use the resolved session.
+     *   2. Legacy body/query endpoints use the `session` payload key.
+     *   3. Global endpoints return null (default host).
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    private function prepareRequest(string &$endpoint, array $payload, WahaSession|string|null $session): ?string
+    {
+        if (str_contains($endpoint, '{session}')) {
+            $resolved = $this->resolveSession($session);
+            $endpoint = str_replace('{session}', $resolved, $endpoint);
+
+            return $resolved;
+        }
+
+        if ($session !== null) {
+            return $this->resolveSession($session);
+        }
+
+        if (is_string($payload['session'] ?? null)) {
+            return $payload['session'];
+        }
+
+        return null;
     }
 
     /**
@@ -50,12 +97,12 @@ trait SendsWahaRequests
         string $failureMessage,
         array $query = [],
         bool $authenticated = true,
-        ?string $session = null,
+        WahaSession|string|null $session = null,
     ): mixed {
-        $session ??= is_string($payload['session'] ?? null) ? $payload['session'] : null;
+        $routingSession = $this->prepareRequest($endpoint, $payload, $session);
 
         try {
-            return $this->wahaRequest->make($method, $endpoint, $payload, $query, $authenticated, $session);
+            return $this->wahaRequest->make($method, $endpoint, $payload, $query, $authenticated, $routingSession);
         } catch (WahaException $e) {
             throw $e;
         } catch (Throwable $e) {
@@ -83,12 +130,12 @@ trait SendsWahaRequests
         string $failureMessage,
         ?string $expectedContentType = null,
         bool $authenticated = true,
-        ?string $session = null,
+        WahaSession|string|null $session = null,
     ): string {
-        $session ??= is_string($payload['session'] ?? null) ? $payload['session'] : null;
+        $routingSession = $this->prepareRequest($endpoint, $payload, $session);
 
         try {
-            return $this->wahaRequest->download($endpoint, $payload, $expectedContentType, $authenticated, $session);
+            return $this->wahaRequest->download($endpoint, $payload, $expectedContentType, $authenticated, $routingSession);
         } catch (WahaException $e) {
             throw $e;
         } catch (Throwable $e) {
@@ -115,12 +162,12 @@ trait SendsWahaRequests
         string $failureMessage,
         ?string $expectedContentType = null,
         bool $authenticated = true,
-        ?string $session = null,
+        WahaSession|string|null $session = null,
     ): string {
-        $session ??= is_string($payload['session'] ?? null) ? $payload['session'] : null;
+        $routingSession = $this->prepareRequest($endpoint, $payload, $session);
 
         try {
-            return $this->wahaRequest->downloadPost($endpoint, $payload, $expectedContentType, $authenticated, $session);
+            return $this->wahaRequest->downloadPost($endpoint, $payload, $expectedContentType, $authenticated, $routingSession);
         } catch (WahaException $e) {
             throw $e;
         } catch (Throwable $e) {

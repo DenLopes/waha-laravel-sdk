@@ -6,6 +6,7 @@ namespace DenLopes\Waha\Webhooks\Models;
 
 use DenLopes\Waha\Enums\WahaWebhookEventEnum;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 
 /**
  * A persisted WAHA webhook delivery.
@@ -20,8 +21,8 @@ use Illuminate\Database\Eloquent\Model;
  * @property string|null $request_id
  * @property string|null $host_key
  * @property string $payload
- * @property \Illuminate\Support\Carbon|null $created_at
- * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
  */
 class WahaWebhookEvent extends Model
 {

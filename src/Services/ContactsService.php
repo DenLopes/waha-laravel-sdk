@@ -133,7 +133,7 @@ class ContactsService
      */
     public function getContactBySession(WahaSession $session, string $id): ContactInfoData
     {
-        $data = $this->send('get', "/api/{$this->session($session)}/contacts/{$id}", [], 'Communication with WAHA failed while fetching the session contact.');
+        $data = $this->send('get', "/api/{session}/contacts/{$id}", [], 'Communication with WAHA failed while fetching the session contact.', session: $session);
 
         return ContactInfoData::fromArray($data);
     }
@@ -143,7 +143,7 @@ class ContactsService
      */
     public function upsertContact(WahaSession $session, string $chatId, ContactUpdateBodyData $body): ResultData
     {
-        $data = $this->send('put', "/api/{$this->session($session)}/contacts/{$chatId}", $body->toArray(), 'Communication with WAHA failed while upserting the contact.');
+        $data = $this->send('put', "/api/{session}/contacts/{$chatId}", $body->toArray(), 'Communication with WAHA failed while upserting the contact.', session: $session);
 
         return ResultData::fromArray($data);
     }

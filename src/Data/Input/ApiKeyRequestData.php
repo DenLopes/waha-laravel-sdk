@@ -23,7 +23,7 @@ final readonly class ApiKeyRequestData extends WahaData
     {
         return new self(
             isAdmin: (bool) ($data['isAdmin'] ?? false),
-            session: $data['session'] ?? null,
+            session: self::string($data, 'session'),
             isActive: (bool) ($data['isActive'] ?? true),
             actions: isset($data['actions']) && is_array($data['actions'])
                 ? SessionActionsData::fromArray($data['actions'])

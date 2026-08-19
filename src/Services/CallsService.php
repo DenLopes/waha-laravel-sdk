@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace DenLopes\Waha\Services;
 
 use DenLopes\Waha\Concerns\SendsWahaRequests;
+use DenLopes\Waha\Data\Input\RejectCallRequestData;
 use DenLopes\Waha\Support\WahaSession;
 
 class CallsService
@@ -14,11 +15,8 @@ class CallsService
     /**
      * Reject an incoming call.
      */
-    public function rejectCall(WahaSession $session, string $from, string $id): array
+    public function rejectCall(WahaSession $session, RejectCallRequestData $request): array
     {
-        return $this->send('post', "/api/{$this->session($session)}/calls/reject", [
-            'from' => $from,
-            'id'   => $id,
-        ], 'Communication with WAHA failed while rejecting the call.');
+        return $this->send('post', '/api/{session}/calls/reject', $request->toArray(), 'Communication with WAHA failed while rejecting the call.', session: $session);
     }
 }
