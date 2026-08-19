@@ -1,0 +1,112 @@
+<?php
+
+declare(strict_types=1);
+
+namespace DenLopes\Waha\Data;
+
+use DenLopes\Waha\Exception\WahaIntegrationException;
+use BackedEnum;
+use ReflectionClass;
+use ReflectionProperty;
+use UnitEnum;
+
+/**
+ * Base class for WAHA data transfer objects.
+ *
+ * Response DTOs implement {@see self::fromArray()} to map raw API payloads into
+ * typed value objects. Request DTOs additionally inherit {@see self::toArray()}
+ * (and {@see self::toJson()}) to serialize themselves back into the payload WAHA
+ * expects. The serializer walks public constructor-promoted properties, skips
+ * null values (WAHA treats an omitted key as "leave unchanged" for most optional
+ * fields), and recursively serializes nested DTOs, backed enums and arrays.
+ */
+abstract readonly class WahaData
+{
+    /**
+     * Build a DTO from a raw WAHA API response array.
+     *
+     * @param  array<string, mixed>  $data  Raw API payload.
+     */
+    abstract public static function fromArray(array $data): static;
+
+    /**
+     * Build a DTO from a raw WAHA API JSON string.
+     */
+    public static function fromJson(string $json): static
+    {
+        try {
+            $data = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $e) {
+            throw new WahaIntegrationException(
+                'Failed to decode WAHA payload: '.$e->getMessage(),
+                0,
+                $e,
+            );
+        }
+
+        return static::fromArray((array) $data);
+    }
+
+    /**
+     * Serialize the DTO into the associative array shape WAHA accepts.
+     *
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return $this->serialize($this);
+    }
+
+    /**
+     * Serialize the DTO to JSON.
+     */
+    public function toJson(int $flags = 0): string
+    {
+        return json_encode($this->toArray(), $flags | JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * Recursively serialize a value into a JSON-friendly representation.
+     */
+    private function serialize(mixed $value): mixed
+    {
+        if ($value instanceof self) {
+            $result = [];
+            $reflection = new ReflectionClass($value);
+
+            foreach ($reflection->getProperties(ReflectionProperty::IS_PUBLIC) as $property) {
+                if (!$property->isInitialized($value)) {
+                    continue;
+                }
+
+                $item = $property->getValue($value);
+
+                if ($item === null) {
+                    continue;
+                }
+
+                $result[$property->getName()] = $this->serialize($item);
+            }
+
+            return $result;
+        }
+
+        if ($value instanceof BackedEnum) {
+            return $value->value;
+        }
+
+        if ($value instanceof UnitEnum) {
+            return $value->name;
+        }
+
+        if ($value instanceof \Stringable) {
+            return (string) $value;
+        }
+
+        if (is_array($value)) {
+            return array_map(fn (mixed $item): mixed => $this->serialize($item), $value);
+        }
+
+        return $value;
+    }
+}
