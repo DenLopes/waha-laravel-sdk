@@ -8,15 +8,20 @@ use DenLopes\Waha\Client;
 use DenLopes\Waha\Data\Input\LinkPreview;
 use DenLopes\Waha\Data\Input\RemoteFile;
 use DenLopes\Waha\Data\Input\SendListMessage;
-use DenLopes\Waha\Exceptions\ConversationThrottledException;
 use DenLopes\Waha\Resources\Chat;
-use DenLopes\Waha\Resources\Conversation;
 use DenLopes\Waha\Resources\Message;
 use DenLopes\Waha\Services\ChatsService;
 use DenLopes\Waha\Services\MessagingService;
 use DenLopes\Waha\Session;
-use DenLopes\Waha\Support\Pacing;
+use DenLopes\Waha\Support\ArrayColdTargetLimiter;
+use DenLopes\Waha\Support\ArraySessionRateLimiter;
+use DenLopes\Waha\Support\ConversationFactory;
+use DenLopes\Waha\Tests\Support\FakeCircuitBreaker;
+use DenLopes\Waha\Tests\Support\FakeContactStageStore;
+use DenLopes\Waha\Tests\Support\FakeConversationStateStore;
+use DenLopes\Waha\Tests\Support\FakeReachoutGuard;
 use DenLopes\Waha\Tests\Support\FakeWahaClient;
+use DenLopes\Waha\Tests\Support\FakeWarmupTracker;
 use PHPUnit\Framework\TestCase;
 
 final class WahaFluentTest extends TestCase
@@ -135,188 +140,12 @@ final class WahaFluentTest extends TestCase
         $manager = new Client(
             new MessagingService($fake),
             new ChatsService($fake),
+            $this->makeConversationFactory(),
         );
 
         $this->assertSame('sales', $manager->chat('11111111111@c.us', 'sales')->session()->value());
         $this->assertSame('sales', $manager->chat('11111111111@c.us', Session::from('sales'))->session()->value());
         $this->assertSame('sales', $manager->session('sales')->value());
-    }
-
-    public function test_conversation_send_follows_anti_ban_flow(): void
-    {
-        [$chat, $fake] = $this->makeChat();
-
-        $sleeps = [];
-        $conversation = new Conversation(
-            $chat,
-            new Pacing(
-                humanize: true,
-                minTypingMs: 0,
-                maxTypingMs: 0,
-                typingMsPerCharacter: 0.0,
-                cooldownMinMs: 0,
-                cooldownMaxMs: 0,
-                maxMessagesPerWindow: 0,
-            ),
-            static function (int $ms) use (&$sleeps): void {
-                $sleeps[] = $ms;
-            },
-        );
-
-        $message = $conversation->send('Hello');
-
-        $this->assertInstanceOf(Message::class, $message);
-        $this->assertSame([
-            '/api/sendSeen',
-            '/api/startTyping',
-            '/api/stopTyping',
-            '/api/sendText',
-        ], array_column($fake->requests, 'endpoint'));
-        $this->assertSame([], $sleeps);
-    }
-
-    public function test_conversation_pauses_after_spaces_when_roll_succeeds(): void
-    {
-        [$chat, $fake] = $this->makeChat();
-
-        $sleeps = [];
-        $conversation = new Conversation(
-            $chat,
-            new Pacing(
-                humanize: true,
-                minTypingMs: 0,
-                maxTypingMs: 0,
-                typingMsPerCharacter: 0.0,
-                typingPauseChancePercent: 100,
-                minTypingPauseMs: 10,
-                maxTypingPauseMs: 10,
-                cooldownMinMs: 0,
-                cooldownMaxMs: 0,
-                maxMessagesPerWindow: 0,
-            ),
-            static function (int $ms) use (&$sleeps): void {
-                $sleeps[] = $ms;
-            },
-        );
-
-        $conversation->send('Hello world');
-
-        $this->assertSame([
-            '/api/sendSeen',
-            '/api/startTyping',
-            '/api/stopTyping',
-            '/api/startTyping',
-            '/api/stopTyping',
-            '/api/sendText',
-        ], array_column($fake->requests, 'endpoint'));
-        $this->assertSame([10], $sleeps);
-    }
-
-    public function test_conversation_wait_sleeps_and_is_chainable(): void
-    {
-        [$chat] = $this->makeChat();
-
-        $sleeps = [];
-        $conversation = new Conversation(
-            $chat,
-            Pacing::off(),
-            static function (int $ms) use (&$sleeps): void {
-                $sleeps[] = $ms;
-            },
-        );
-
-        $this->assertSame($conversation, $conversation->wait(25));
-        $this->assertSame([25], $sleeps);
-    }
-
-    public function test_conversation_respects_cooldown_between_messages(): void
-    {
-        [$chat] = $this->makeChat();
-
-        $sleeps = [];
-        $conversation = new Conversation(
-            $chat,
-            new Pacing(
-                humanize: false,
-                cooldownMinMs: 50,
-                cooldownMaxMs: 50,
-                maxMessagesPerWindow: 0,
-            ),
-            static function (int $ms) use (&$sleeps): void {
-                $sleeps[] = $ms;
-            },
-        );
-
-        $conversation->send('first');
-        $conversation->send('second');
-
-        $this->assertCount(1, $sleeps);
-        $this->assertGreaterThan(0, $sleeps[0]);
-    }
-
-    public function test_conversation_throws_when_window_limit_is_reached(): void
-    {
-        [$chat] = $this->makeChat();
-
-        $conversation = new Conversation(
-            $chat,
-            new Pacing(
-                humanize: false,
-                cooldownMinMs: 0,
-                cooldownMaxMs: 0,
-                maxMessagesPerWindow: 1,
-                windowSeconds: 60,
-            ),
-        );
-
-        $conversation->send('first');
-
-        $this->expectException(ConversationThrottledException::class);
-        $conversation->send('second');
-    }
-
-    public function test_conversation_reset_clears_window_limit(): void
-    {
-        [$chat] = $this->makeChat();
-
-        $conversation = new Conversation(
-            $chat,
-            new Pacing(
-                humanize: false,
-                cooldownMinMs: 0,
-                cooldownMaxMs: 0,
-                maxMessagesPerWindow: 1,
-                windowSeconds: 60,
-            ),
-        );
-
-        $conversation->send('first');
-        $conversation->reset();
-
-        $this->assertInstanceOf(Message::class, $conversation->send('second'));
-    }
-
-    public function test_conversation_reply_passes_reply_to(): void
-    {
-        [$chat, $fake] = $this->makeChat();
-
-        $conversation = new Conversation($chat, Pacing::off());
-
-        $message = $conversation->reply('Hello back', 'false_11111111111@c.us_IN');
-
-        $this->assertInstanceOf(Message::class, $message);
-        $this->assertSame('/api/sendText', $fake->requests[0]['endpoint']);
-        $this->assertSame('false_11111111111@c.us_IN', $fake->requests[0]['payload']['reply_to']);
-    }
-
-    public function test_chat_exposes_conversation_handle(): void
-    {
-        [$chat] = $this->makeChat();
-
-        $conversation = $chat->conversation();
-
-        $this->assertInstanceOf(Conversation::class, $conversation);
-        $this->assertSame($chat->chatId(), $conversation->chatId());
     }
 
     /**
@@ -335,8 +164,22 @@ final class WahaFluentTest extends TestCase
             '11111111111@c.us',
             new MessagingService($fake),
             new ChatsService($fake),
+            $this->makeConversationFactory(),
         );
 
         return [$chat, $fake];
+    }
+
+    private function makeConversationFactory(): ConversationFactory
+    {
+        return new ConversationFactory(
+            stateStore: new FakeConversationStateStore,
+            contactStageStore: new FakeContactStageStore,
+            sessionLimiter: new ArraySessionRateLimiter,
+            coldTargetLimiter: new ArrayColdTargetLimiter,
+            reachoutGuard: new FakeReachoutGuard,
+            warmupTracker: new FakeWarmupTracker,
+            circuitBreaker: new FakeCircuitBreaker,
+        );
     }
 }

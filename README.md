@@ -1,17 +1,25 @@
 # WAHA Laravel SDK
 
-A typed, multi-host Laravel client for [WAHA](https://waha.devlike.pro/) (WhatsApp
-HTTP API). It wraps the HTTP endpoints in injectable services, maps JSON payloads
-to and from DTOs, and adds a small fluent layer for chat, message, and
-human-like conversation flows. Webhook verification, dispatch, and config- or
-DB-backed host routing are built in.
+A Laravel client for [WAHA](https://waha.devlike.pro/), the self-hosted WhatsApp
+HTTP API. It talks to one or more WAHA servers through typed, injectable services
+and a small fluent layer for chat, message, and human-like sending.
+
+What's in the box:
+
+- Services for every API area (`MessagingService`, `SessionService`,
+  `ChatsService`, and the rest) that return typed DTOs instead of raw arrays.
+- Fluent `Chat`, `Message`, and `Conversation` handles that carry their session
+  and ID, so you don't repeat them on every call.
+- A `Conversation` layer that paces sends like a human and enforces quotas per
+  contact stage, to avoid WhatsApp spam flags.
+- Multi-host routing from config or the database, with per-session API keys.
+- Webhook verification, replay protection, and dispatch.
 
 ## Table of contents
 
 - [Requirements](#requirements)
 - [Installation](#installation)
 - [Quick start](#quick-start)
-- [Resources](#resources)
 - [Sessions](#sessions)
 - [Services](#services)
 - [DTOs](#dtos)
@@ -28,6 +36,8 @@ DB-backed host routing are built in.
 
 - PHP `^8.3`
 - Laravel `^10.0 || ^11.0 || ^12.0 || ^13.0`
+- phpredis, if you use the Redis limiter driver. The conversation limiters are
+  built on `PhpRedisConnection`; predis is not supported for them.
 
 ## Installation
 
@@ -35,16 +45,24 @@ DB-backed host routing are built in.
 composer require denlopes/waha-laravel-sdk
 ```
 
-Package discovery registers `DenLopes\Waha\WahaServiceProvider` and the `Waha`
-facade automatically. Publish the config and migrations:
+Package discovery registers the service provider and the `Waha` facade. Publish
+the config and migrations:
 
 ```bash
 php artisan vendor:publish --tag="waha-config"
 php artisan vendor:publish --tag="waha-migrations"
 ```
 
-Add the WAHA connection settings to your `.env` (see
-[Configuration](#configuration)).
+Then set your WAHA URL and API key in `.env`:
+
+```dotenv
+WAHA_BASE_URL=http://localhost:3000
+WAHA_API_KEY=your-secret-key
+```
+
+That's enough to start sending. If you run the conversation limiters on Redis,
+install the phpredis extension and set `WAHA_CONVERSATIONS_LIMITER_DRIVER=redis`.
+Predis won't work for that driver.
 
 ### Local development
 
@@ -68,7 +86,7 @@ path repository:
 
 ## Quick start
 
-The facade is the fastest entry point:
+The `Waha` facade is the fastest way in. Send a text message:
 
 ```php
 use Waha;
@@ -76,16 +94,52 @@ use Waha;
 $chat = Waha::chat('5511999999999@c.us');
 
 $message = $chat->sendMessage('Hello from Laravel');
+$message->id(); // WhatsApp message id
 ```
 
-If you prefer constructor injection, `app(\DenLopes\Waha\Client::class)` is the
-class the facade resolves to.
+Send an image:
 
-## Resources
+```php
+use DenLopes\Waha\Data\Input\RemoteFile;
 
-Three fluent resource handles — `Chat`, `Message`, and `Conversation` — cover the
-common chat and message flows. They carry their session and ID so you don't repeat
-them on every call.
+$chat->sendImage(new RemoteFile('image/jpeg', 'https://example.com/pic.jpg'));
+```
+
+Reply to an inbound message:
+
+```php
+$chat->sendMessage('Thanks for reaching out!', replyTo: 'false_123@c.us_ABC');
+```
+
+Send like a human, with pacing and quotas handled for you:
+
+```php
+$conversation = $chat->conversation();
+
+$conversation->send('Hi there');
+$conversation->reply('Good question', $incomingMessageId);
+```
+
+List sessions through a service:
+
+```php
+use DenLopes\Waha\Services\SessionService;
+
+$sessions = app(SessionService::class)->listSessions();
+```
+
+The facade resolves to `DenLopes\Waha\Client`. Prefer constructor injection?
+Inject `Client` instead:
+
+```php
+use DenLopes\Waha\Client;
+
+public function __construct(private Client $waha) {}
+
+$chat = $this->waha->chat('5511999999999@c.us', 'sales');
+```
+
+The second argument picks the session. Omit it to use `waha.default_session`.
 
 ### Chat
 
@@ -147,7 +201,7 @@ use Waha;
 
 $conversation = Waha::conversation('5511999999999@c.us');
 
-// markRead → startTyping → random typing delay → stopTyping → sendText
+// markRead → thinking delay → startTyping → random typing delay → stopTyping → sendText
 $message = $conversation->send('Hello from Laravel');
 
 // Reply to an inbound message with the same flow.
@@ -168,23 +222,53 @@ $conversation
 $conversation->reset(); // clear pacing state, e.g. when a human takes over
 ```
 
-The behavior is driven by the `waha.conversations` config block and represented
-by the `DenLopes\Waha\Support\Pacing` value object. It simulates word-by-word
-typing with an occasional pause, spaces out consecutive messages with a random
-cooldown, and enforces an optional per-window message cap. When the cap is hit it
-throws `ConversationThrottledException` instead of hammering the contact — catch
-it and schedule a retry or pause the outreach.
+The behavior is driven by the `waha.conversations` config block. Transport
+mechanics (thinking, typing, pauses, delay skew) stay on the `Pacing` value
+object. Quotas live on per-stage `TierConfig` objects, one for `cold`, `warm`,
+and `reply`. `Pacing::tier(ContactStage::Cold)` returns the tier for a stage.
+
+Each `send()` gates the message through a fixed pipeline before anything goes
+out:
+
+1. The delivery circuit breaker, if enabled. When a session's recent failure
+   rate clears the threshold, `send()` throws `CircuitBreakerOpenException`.
+2. Stage resolution. A `replyTo` makes it a reply; a contact that has messaged
+   you before is warm; anything else is cold. `withStage()` forces a stage.
+3. Cold link policy. Cold sends disable link previews, and can reject URLs with
+   `ColdMessageContainsUrlException`.
+4. Reachout guard. Cold sends check the session's capping and timelock and throw
+   `ReachoutQuotaExhaustedException` or `ReachoutTimelockActiveException`.
+5. Per-chat and per-session quotas for the stage, then the cooldown wait.
 
 ```php
+use DenLopes\Waha\Enums\ContactStage;
 use DenLopes\Waha\Support\Pacing;
 
 Pacing::fromConfig(); // reads waha.conversations
 Pacing::off();        // no humanization, no pacing (useful in tests)
+
+$conversation->withStage(ContactStage::Warm)->send('hi');
 ```
 
-Pacing state lives on the conversation instance. Create one conversation per
-contact flow and reuse it for the lifetime of that flow; for cross-process
-throttling, combine it with Laravel's queue or rate limiter.
+Pacing state is stored in Laravel's cache by default, so the cooldown and window
+cap are shared across conversations targeting the same chat, even in different
+workers. Each `send()` also takes a `Cache::lock()` scoped to that chat, so
+concurrent sends serialize instead of racing on the shared state. The lock
+time-to-live is computed from the message and pacing policy, so it grows with
+longer messages rather than using a fixed timeout. How long a worker waits for
+the lock is separate, controlled by `lock_wait_seconds`. Set `cache_store` and
+`cache_prefix` in `waha.conversations` to pick the cache store and key namespace.
+Call `reset()` to clear the state.
+
+Inbound webhooks feed the model too. A 1:1 inbound message marks the contact
+warm, and message acks record delivery successes and failures for the circuit
+breaker. Both are handled by the package's webhook listener and no-op when the
+matching feature is disabled.
+
+When these sends run inside a queue job, keep the worker timeout above the
+longest possible delay. The thinking and typing pauses are synchronous `usleep()`
+calls, so a very long message can block a worker for a minute or more. A
+`queue:work --timeout=120` is a safer floor than the default 30 seconds.
 
 ## Sessions
 
@@ -392,6 +476,10 @@ Two extension points:
 
 Handlers implement `DenLopes\Waha\Webhooks\Contracts\WebhookHandler`.
 
+The package also registers its own listener for inbound messages and message
+acks. It marks contacts warm and feeds the delivery circuit breaker, and no-ops
+when those features are disabled. See [Conversations (anti-ban)](#conversations-anti-ban).
+
 ### Processing mode
 
 - `sync` (default) — runs handlers inline during the HTTP request.
@@ -429,6 +517,13 @@ targeted handling. API/HTTP failures share `ApiException` as their base.
 | `NotImplementedException` | `501` endpoint not implemented by the engine  |
 | `UnknownHostException` | Requested host is not configured                 |
 | `WebhookException`     | Webhook verification or dispatch failure         |
+| `ConversationThrottledException` | Per-chat window cap reached              |
+| `SessionRateLimitedException` | Per-session stage quota reached           |
+| `ColdFanoutThrottledException` | Cold unique-target budget exhausted       |
+| `ReachoutQuotaExhaustedException` | WhatsApp reachout capping exhausted     |
+| `ReachoutTimelockActiveException` | WhatsApp reachout timelock active       |
+| `ColdMessageContainsUrlException` | Cold message rejected for containing a URL |
+| `CircuitBreakerOpenException` | Delivery circuit breaker open             |
 
 Each exception carries a structured `context()` array (HTTP method, endpoint,
 status, and a response body snippet) for logging and diagnostics.
@@ -448,7 +543,10 @@ try {
 ```
 src/
 ├── Concerns/              SendsRequests — shared HTTP plumbing for services
-├── Contracts/             HttpClient, HostRegistry, ApiKeyProvider, SessionRouter, PinStore, Chat, Message, Conversation
+├── Contracts/             HttpClient, HostRegistry, ApiKeyProvider, SessionRouter, PinStore,
+│                          ConversationStateStore, ContactStageStore, SessionRateLimiter,
+│                          ColdTargetLimiter, ReachoutGuard, WarmupTracker, CircuitBreaker,
+│                          Chat, Message, Conversation
 ├── Data/
 │   ├── Input/             Request DTOs (serialized to WAHA payloads)
 │   ├── Output/            Response/event DTOs (built from WAHA payloads)
@@ -467,8 +565,9 @@ src/
 ├── Routing/               NullRouter, PinningRouter
 ├── Security/              ConfigApiKeyProvider
 ├── Services/              One class per WAHA API area
-├── Support/               Pacing
-├── Webhooks/              Verification, route, dispatch, handlers, events, models
+├── Support/               Pacing, TierConfig, ConversationFactory, Spintax, stores, limiters,
+│                          guards, trackers, breakers
+├── Webhooks/              Verification, route, dispatch, handlers, listeners, events, models
 ├── Client.php             Container entry point (resource factory)
 ├── Session.php            Session name value object
 └── WahaServiceProvider.php Config merge, migrations, bindings

@@ -12,8 +12,8 @@ final readonly class MessageCapping extends Data
     public function __construct(
         public ?MessageCappingStatus $cappingStatus,
         public string $cappingStatusRaw,
-        public int $totalQuota,
-        public int $usedQuota,
+        public ?int $totalQuota,
+        public ?int $usedQuota,
         public ?int $cycleStart,
         public ?int $cycleEnd,
         public ?string $mvStatus,
@@ -27,8 +27,8 @@ final readonly class MessageCapping extends Data
         return new self(
             cappingStatus: MessageCappingStatus::tryFrom($cappingStatusRaw),
             cappingStatusRaw: $cappingStatusRaw,
-            totalQuota: (int) ($data['totalQuota'] ?? 0),
-            usedQuota: (int) ($data['usedQuota'] ?? 0),
+            totalQuota: isset($data['totalQuota']) ? (int) $data['totalQuota'] : null,
+            usedQuota: isset($data['usedQuota']) ? (int) $data['usedQuota'] : null,
             cycleStart: isset($data['cycleStart']) ? (int) $data['cycleStart'] : null,
             cycleEnd: isset($data['cycleEnd']) ? (int) $data['cycleEnd'] : null,
             mvStatus: isset($data['mvStatus']) ? (string) $data['mvStatus'] : null,

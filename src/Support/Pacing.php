@@ -4,43 +4,57 @@ declare(strict_types=1);
 
 namespace DenLopes\Waha\Support;
 
+use DenLopes\Waha\Enums\ContactStage;
 use InvalidArgumentException;
 
 /**
  * Configuration for human-like, anti-ban conversation behaviour.
  *
- * The policy encodes the WhatsApp-safe sending flow recommended by WAHA:
+ * The policy is split into two concerns:
  *
- *   1. mark the chat as seen,
- *   2. start typing,
- *   3. type word-by-word, with a configurable chance of pausing after a space,
- *   4. stop typing,
- *   5. send the message.
+ *   - transport mechanics (thinking, typing, pauses, delay skew), which shape
+ *     how a single message is emitted;
+ *   - per-stage {@see TierConfig} limits, which shape how many messages may go
+ *     out to a contact or session over time.
  *
- * The pause is a small "dice roll": after every space the bot has a 12% chance
- * (by default) to stop typing, wait a random interval, then start typing again.
- * On top of that it enforces a random cooldown between consecutive messages and
- * an optional per-window message cap, so a bot does not spam a contact.
- *
- * All values are intentionally expressed in milliseconds/seconds and default to
- * conservative values. Use {@see Pacing::fromConfig()} to build one
- * from waha.conversations, or {@see Pacing::off()} in tests.
+ * Random delays use a skewed distribution rather than uniform random, so short
+ * delays are common and long delays are rare. Use {@see Pacing::fromConfig()} to
+ * build one from `waha.conversations`, or {@see Pacing::off()} in tests.
  */
 final readonly class Pacing
 {
+    /**
+     * @var array<string, TierConfig>
+     */
+    private array $tiers;
+
     public function __construct(
         public bool $humanize = true,
+        public int $thinkingMinMs = 600,
+        public int $thinkingMaxMs = 2000,
+        public float $thinkingMsPerCharacter = 20.0,
         public int $minTypingMs = 800,
         public int $maxTypingMs = 3000,
         public float $typingMsPerCharacter = 60.0,
-        public int $typingPauseChancePercent = 12,
+        public int $typingPauseChancePercent = 4,
         public int $minTypingPauseMs = 400,
         public int $maxTypingPauseMs = 1500,
-        public int $cooldownMinMs = 30000,
-        public int $cooldownMaxMs = 60000,
-        public int $maxMessagesPerWindow = 4,
-        public int $windowSeconds = 3600,
+        public float $delaySkew = 2.0,
+        public int $lockWaitSeconds = 300,
+        ?array $tiers = null,
     ) {
+        if ($this->thinkingMinMs < 0) {
+            throw new InvalidArgumentException('thinkingMinMs must be greater than or equal to zero.');
+        }
+
+        if ($this->thinkingMaxMs < $this->thinkingMinMs) {
+            throw new InvalidArgumentException('thinkingMaxMs must be greater than or equal to thinkingMinMs.');
+        }
+
+        if ($this->thinkingMsPerCharacter < 0) {
+            throw new InvalidArgumentException('thinkingMsPerCharacter must be greater than or equal to zero.');
+        }
+
         if ($this->minTypingMs < 0) {
             throw new InvalidArgumentException('minTypingMs must be greater than or equal to zero.');
         }
@@ -65,21 +79,15 @@ final readonly class Pacing
             throw new InvalidArgumentException('maxTypingPauseMs must be greater than or equal to minTypingPauseMs.');
         }
 
-        if ($this->cooldownMinMs < 0 || $this->cooldownMaxMs < 0) {
-            throw new InvalidArgumentException('Cooldown values must be greater than or equal to zero.');
+        if ($this->delaySkew <= 0) {
+            throw new InvalidArgumentException('delaySkew must be greater than zero.');
         }
 
-        if ($this->cooldownMaxMs < $this->cooldownMinMs) {
-            throw new InvalidArgumentException('cooldownMaxMs must be greater than or equal to cooldownMinMs.');
+        if ($this->lockWaitSeconds <= 0) {
+            throw new InvalidArgumentException('lockWaitSeconds must be greater than zero.');
         }
 
-        if ($this->maxMessagesPerWindow < 0) {
-            throw new InvalidArgumentException('maxMessagesPerWindow must be greater than or equal to zero.');
-        }
-
-        if ($this->windowSeconds < 0) {
-            throw new InvalidArgumentException('windowSeconds must be greater than or equal to zero.');
-        }
+        $this->tiers = $tiers ?? self::defaultTiers();
     }
 
     /**
@@ -100,16 +108,20 @@ final readonly class Pacing
     {
         return new self(
             humanize: false,
+            thinkingMinMs: 0,
+            thinkingMaxMs: 0,
+            thinkingMsPerCharacter: 0.0,
             minTypingMs: 0,
             maxTypingMs: 0,
             typingMsPerCharacter: 0.0,
             typingPauseChancePercent: 0,
             minTypingPauseMs: 0,
             maxTypingPauseMs: 0,
-            cooldownMinMs: 0,
-            cooldownMaxMs: 0,
-            maxMessagesPerWindow: 0,
-            windowSeconds: 0,
+            tiers: [
+                ContactStage::Cold->value  => new TierConfig,
+                ContactStage::Warm->value  => new TierConfig,
+                ContactStage::Reply->value => new TierConfig,
+            ],
         );
     }
 
@@ -118,20 +130,68 @@ final readonly class Pacing
      */
     public static function fromConfig(): self
     {
-        $settings = (array) config('waha.conversations', []);
+        $conversations = (array) config('waha.conversations', []);
+        $pacing = (array) ($conversations['pacing'] ?? []);
+        $tiers = (array) ($conversations['tiers'] ?? []);
+
+        $map = [];
+
+        foreach (ContactStage::cases() as $stage) {
+            $map[$stage->value] = TierConfig::fromArray((array) ($tiers[$stage->value] ?? []));
+        }
 
         return new self(
-            humanize: (bool) ($settings['humanize'] ?? true),
-            minTypingMs: max(0, (int) ($settings['typing_min_ms'] ?? 800)),
-            maxTypingMs: max(0, (int) ($settings['typing_max_ms'] ?? 3000)),
-            typingMsPerCharacter: max(0.0, (float) ($settings['typing_per_character_ms'] ?? 60.0)),
-            typingPauseChancePercent: min(100, max(0, (int) ($settings['typing_pause_chance_percent'] ?? 12))),
-            minTypingPauseMs: max(0, (int) ($settings['typing_pause_min_ms'] ?? 400)),
-            maxTypingPauseMs: max(0, (int) ($settings['typing_pause_max_ms'] ?? 1500)),
-            cooldownMinMs: max(0, (int) ($settings['cooldown_min_ms'] ?? 30000)),
-            cooldownMaxMs: max(0, (int) ($settings['cooldown_max_ms'] ?? 60000)),
-            maxMessagesPerWindow: max(0, (int) ($settings['max_messages_per_window'] ?? 4)),
-            windowSeconds: max(0, (int) ($settings['window_seconds'] ?? 3600)),
+            humanize: (bool) ($pacing['humanize'] ?? true),
+            thinkingMinMs: max(0, (int) ($pacing['thinking_min_ms'] ?? 600)),
+            thinkingMaxMs: max(0, (int) ($pacing['thinking_max_ms'] ?? 2000)),
+            thinkingMsPerCharacter: max(0.0, (float) ($pacing['thinking_per_character_ms'] ?? 20.0)),
+            minTypingMs: max(0, (int) ($pacing['typing_min_ms'] ?? 800)),
+            maxTypingMs: max(0, (int) ($pacing['typing_max_ms'] ?? 3000)),
+            typingMsPerCharacter: max(0.0, (float) ($pacing['typing_per_character_ms'] ?? 60.0)),
+            typingPauseChancePercent: min(100, max(0, (int) ($pacing['typing_pause_chance_percent'] ?? 4))),
+            minTypingPauseMs: max(0, (int) ($pacing['typing_pause_min_ms'] ?? 400)),
+            maxTypingPauseMs: max(0, (int) ($pacing['typing_pause_max_ms'] ?? 1500)),
+            delaySkew: max(0.01, (float) ($pacing['delay_skew'] ?? 2.0)),
+            lockWaitSeconds: max(1, (int) ($pacing['lock_wait_seconds'] ?? 300)),
+            tiers: $map,
         );
+    }
+
+    /**
+     * The tier configuration for a contact stage.
+     */
+    public function tier(ContactStage $stage): TierConfig
+    {
+        return $this->tiers[$stage->value];
+    }
+
+    /**
+     * @return array<string, TierConfig>
+     */
+    private static function defaultTiers(): array
+    {
+        return [
+            ContactStage::Cold->value => new TierConfig(
+                maxMessagesPerWindow: 1,
+                windowSeconds: 86400,
+                sessionMaxMessages: 15,
+                sessionWindowSeconds: 86400,
+                sessionMaxUniqueTargets: 10,
+                cooldownMinMs: 60000,
+                cooldownMaxMs: 180000,
+            ),
+            ContactStage::Warm->value => new TierConfig(
+                maxMessagesPerWindow: 5,
+                windowSeconds: 3600,
+                sessionMaxMessages: 100,
+                sessionWindowSeconds: 3600,
+            ),
+            ContactStage::Reply->value => new TierConfig(
+                maxMessagesPerWindow: 20,
+                windowSeconds: 3600,
+                sessionMaxMessages: 300,
+                sessionWindowSeconds: 3600,
+            ),
+        ];
     }
 }

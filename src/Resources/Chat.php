@@ -20,6 +20,7 @@ use DenLopes\Waha\Data\Output\MessageData;
 use DenLopes\Waha\Services\ChatsService;
 use DenLopes\Waha\Services\MessagingService;
 use DenLopes\Waha\Session;
+use DenLopes\Waha\Support\ConversationFactory;
 use DenLopes\Waha\Support\Pacing;
 
 /**
@@ -44,6 +45,7 @@ final class Chat implements ChatContract
         private readonly string $chatId,
         private readonly MessagingService $messaging,
         private readonly ChatsService $chats,
+        private readonly ConversationFactory $conversations,
     ) {}
 
     public function session(): Session
@@ -70,7 +72,7 @@ final class Chat implements ChatContract
      */
     public function conversation(?Pacing $policy = null): Conversation
     {
-        return new Conversation($this, $policy ?? new Pacing);
+        return $this->conversations->make($this, $policy);
     }
 
     /**

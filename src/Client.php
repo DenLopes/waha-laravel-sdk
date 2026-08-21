@@ -9,6 +9,7 @@ use DenLopes\Waha\Resources\Conversation;
 use DenLopes\Waha\Resources\Message;
 use DenLopes\Waha\Services\ChatsService;
 use DenLopes\Waha\Services\MessagingService;
+use DenLopes\Waha\Support\ConversationFactory;
 use DenLopes\Waha\Support\Pacing;
 
 /**
@@ -31,6 +32,7 @@ final class Client
     public function __construct(
         private readonly MessagingService $messaging,
         private readonly ChatsService $chats,
+        private readonly ConversationFactory $conversations,
     ) {}
 
     /**
@@ -38,7 +40,7 @@ final class Client
      */
     public function chat(string $chatId, string|Session|null $session = null): Chat
     {
-        return new Chat($this->resolveSession($session), $chatId, $this->messaging, $this->chats);
+        return new Chat($this->resolveSession($session), $chatId, $this->messaging, $this->chats, $this->conversations);
     }
 
     /**
@@ -60,7 +62,7 @@ final class Client
         string|Session|null $session = null,
         ?Pacing $policy = null,
     ): Conversation {
-        return $this->chat($chatId, $session)->conversation($policy ?? Pacing::fromConfig());
+        return $this->chat($chatId, $session)->conversation($policy);
     }
 
     /**

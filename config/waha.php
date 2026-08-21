@@ -134,30 +134,86 @@ return [
     | Conversations (anti-ban)
     |--------------------------------------------------------------------------
     |
-    | Settings used by the fluent `Conversation` resource to send messages
-    | in a human-like way and avoid being flagged as spam:
+    | Settings used by the fluent `Conversation` resource to send messages in a
+    | human-like way and avoid being flagged as spam. The policy is layered:
     |
-    |   - humanize: markRead → startTyping → (typing delay) → stopTyping → send
-    |   - typing_*: random typing duration, plus an amount per character
-    |   - cooldown_*: random wait between consecutive messages
-    |   - max_messages_per_window / window_seconds: pause once the cap is hit
+    |   - pacing: transport mechanics (thinking, typing, pauses, delay skew)
+    |   - tiers: per-stage quotas split by cold / warm / reply contact lifecycle
+    |   - reachout: WhatsApp's own capping and timelock state
+    |   - warmup: ramp for brand-new sessions
+    |   - circuit_breaker: delivery-failure signal, opt-in
     |
     | The defaults mirror WAHA's recommendation of sending only a handful of
-    | messages per contact and waiting 30-60 seconds between messages.
+    | messages per contact. `limiter_driver` is `auto`, `redis`, or `cache`;
+    | `auto` uses Redis when the configured cache store is Redis, otherwise
+    | falls back to the cache-backed limiters.
     |
     */
     'conversations' => [
-        'humanize'                    => (bool) env('WAHA_CONVERSATIONS_HUMANIZE', true),
-        'typing_min_ms'               => (int) env('WAHA_CONVERSATIONS_TYPING_MIN_MS', 800),
-        'typing_max_ms'               => (int) env('WAHA_CONVERSATIONS_TYPING_MAX_MS', 3000),
-        'typing_per_character_ms'     => (float) env('WAHA_CONVERSATIONS_TYPING_PER_CHAR_MS', 60.0),
-        'typing_pause_chance_percent' => (int) env('WAHA_CONVERSATIONS_TYPING_PAUSE_CHANCE_PERCENT', 12),
-        'typing_pause_min_ms'         => (int) env('WAHA_CONVERSATIONS_TYPING_PAUSE_MIN_MS', 400),
-        'typing_pause_max_ms'         => (int) env('WAHA_CONVERSATIONS_TYPING_PAUSE_MAX_MS', 1500),
-        'cooldown_min_ms'             => (int) env('WAHA_CONVERSATIONS_COOLDOWN_MIN_MS', 30000),
-        'cooldown_max_ms'             => (int) env('WAHA_CONVERSATIONS_COOLDOWN_MAX_MS', 60000),
-        'max_messages_per_window'     => (int) env('WAHA_CONVERSATIONS_MAX_MESSAGES_PER_WINDOW', 4),
-        'window_seconds'              => (int) env('WAHA_CONVERSATIONS_WINDOW_SECONDS', 3600),
+        'pacing' => [
+            'humanize'                    => (bool) env('WAHA_CONVERSATIONS_HUMANIZE', true),
+            'thinking_min_ms'             => (int) env('WAHA_CONVERSATIONS_THINKING_MIN_MS', 600),
+            'thinking_max_ms'             => (int) env('WAHA_CONVERSATIONS_THINKING_MAX_MS', 2000),
+            'thinking_per_character_ms'   => (float) env('WAHA_CONVERSATIONS_THINKING_PER_CHAR_MS', 20.0),
+            'typing_min_ms'               => (int) env('WAHA_CONVERSATIONS_TYPING_MIN_MS', 800),
+            'typing_max_ms'               => (int) env('WAHA_CONVERSATIONS_TYPING_MAX_MS', 3000),
+            'typing_per_character_ms'     => (float) env('WAHA_CONVERSATIONS_TYPING_PER_CHAR_MS', 60.0),
+            'typing_pause_chance_percent' => (int) env('WAHA_CONVERSATIONS_TYPING_PAUSE_CHANCE_PERCENT', 4),
+            'typing_pause_min_ms'         => (int) env('WAHA_CONVERSATIONS_TYPING_PAUSE_MIN_MS', 400),
+            'typing_pause_max_ms'         => (int) env('WAHA_CONVERSATIONS_TYPING_PAUSE_MAX_MS', 1500),
+            'delay_skew'                  => (float) env('WAHA_CONVERSATIONS_DELAY_SKEW', 2.0),
+            'lock_wait_seconds'           => (int) env('WAHA_CONVERSATIONS_LOCK_WAIT_SECONDS', 300),
+        ],
+
+        'tiers' => [
+            'cold' => [
+                'max_messages_per_window'    => (int) env('WAHA_CONVERSATIONS_TIERS_COLD_MAX_MESSAGES_PER_WINDOW', 1),
+                'window_seconds'             => (int) env('WAHA_CONVERSATIONS_TIERS_COLD_WINDOW_SECONDS', 86400),
+                'session_max_messages'       => (int) env('WAHA_CONVERSATIONS_TIERS_COLD_SESSION_MAX_MESSAGES', 15),
+                'session_window_seconds'     => (int) env('WAHA_CONVERSATIONS_TIERS_COLD_SESSION_WINDOW_SECONDS', 86400),
+                'session_max_unique_targets' => (int) env('WAHA_CONVERSATIONS_TIERS_COLD_SESSION_MAX_UNIQUE_TARGETS', 10),
+                'cooldown_min_ms'            => (int) env('WAHA_CONVERSATIONS_TIERS_COLD_COOLDOWN_MIN_MS', 60000),
+                'cooldown_max_ms'            => (int) env('WAHA_CONVERSATIONS_TIERS_COLD_COOLDOWN_MAX_MS', 180000),
+            ],
+            'warm' => [
+                'max_messages_per_window' => (int) env('WAHA_CONVERSATIONS_TIERS_WARM_MAX_MESSAGES_PER_WINDOW', 5),
+                'window_seconds'          => (int) env('WAHA_CONVERSATIONS_TIERS_WARM_WINDOW_SECONDS', 3600),
+                'session_max_messages'    => (int) env('WAHA_CONVERSATIONS_TIERS_WARM_SESSION_MAX_MESSAGES', 100),
+                'session_window_seconds'  => (int) env('WAHA_CONVERSATIONS_TIERS_WARM_SESSION_WINDOW_SECONDS', 3600),
+            ],
+            'reply' => [
+                'max_messages_per_window' => (int) env('WAHA_CONVERSATIONS_TIERS_REPLY_MAX_MESSAGES_PER_WINDOW', 20),
+                'window_seconds'          => (int) env('WAHA_CONVERSATIONS_TIERS_REPLY_WINDOW_SECONDS', 3600),
+                'session_max_messages'    => (int) env('WAHA_CONVERSATIONS_TIERS_REPLY_SESSION_MAX_MESSAGES', 300),
+                'session_window_seconds'  => (int) env('WAHA_CONVERSATIONS_TIERS_REPLY_SESSION_WINDOW_SECONDS', 3600),
+            ],
+        ],
+
+        'reachout' => [
+            'enabled'                => (bool) env('WAHA_CONVERSATIONS_REACHOUT_ENABLED', true),
+            'capping_cache_seconds'  => (int) env('WAHA_CONVERSATIONS_REACHOUT_CAPPING_CACHE_SECONDS', 30),
+            'timelock_cache_seconds' => (int) env('WAHA_CONVERSATIONS_REACHOUT_TIMELOCK_CACHE_SECONDS', 60),
+            'throw_on_cold_urls'     => (bool) env('WAHA_CONVERSATIONS_REACHOUT_THROW_ON_COLD_URLS', false),
+        ],
+
+        'warmup' => [
+            'enabled'     => (bool) env('WAHA_CONVERSATIONS_WARMUP_ENABLED', true),
+            'age_seconds' => (int) env('WAHA_CONVERSATIONS_WARMUP_AGE_SECONDS', 1209600),
+            'multiplier'  => (float) env('WAHA_CONVERSATIONS_WARMUP_MULTIPLIER', 0.2),
+        ],
+
+        'circuit_breaker' => [
+            'enabled'                => (bool) env('WAHA_CONVERSATIONS_CIRCUIT_BREAKER_ENABLED', false),
+            'failure_window_seconds' => (int) env('WAHA_CONVERSATIONS_CIRCUIT_BREAKER_FAILURE_WINDOW_SECONDS', 900),
+            'failure_rate_threshold' => (float) env('WAHA_CONVERSATIONS_CIRCUIT_BREAKER_FAILURE_RATE_THRESHOLD', 0.3),
+            'min_samples'            => (int) env('WAHA_CONVERSATIONS_CIRCUIT_BREAKER_MIN_SAMPLES', 20),
+            'cooldown_seconds'       => (int) env('WAHA_CONVERSATIONS_CIRCUIT_BREAKER_COOLDOWN_SECONDS', 300),
+        ],
+
+        'limiter_driver'    => (string) env('WAHA_CONVERSATIONS_LIMITER_DRIVER', 'auto'),
+        'cache_store'       => env('WAHA_CONVERSATIONS_CACHE_STORE'),
+        'cache_prefix'      => (string) env('WAHA_CONVERSATIONS_CACHE_PREFIX', 'waha:conversation:'),
+        'contact_stage_ttl' => (int) env('WAHA_CONVERSATIONS_CONTACT_STAGE_TTL', 2592000),
     ],
 
     /*

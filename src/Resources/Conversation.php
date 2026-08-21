@@ -4,45 +4,50 @@ declare(strict_types=1);
 
 namespace DenLopes\Waha\Resources;
 
+use DenLopes\Waha\Contracts\CircuitBreaker;
+use DenLopes\Waha\Contracts\ColdTargetLimiter;
+use DenLopes\Waha\Contracts\ContactStageStore;
 use DenLopes\Waha\Contracts\Conversation as ConversationContract;
+use DenLopes\Waha\Contracts\ConversationStateStore;
+use DenLopes\Waha\Contracts\ReachoutGuard;
+use DenLopes\Waha\Contracts\SessionRateLimiter;
+use DenLopes\Waha\Contracts\WarmupTracker;
+use DenLopes\Waha\Enums\ContactStage;
+use DenLopes\Waha\Exceptions\CircuitBreakerOpenException;
+use DenLopes\Waha\Exceptions\ColdMessageContainsUrlException;
 use DenLopes\Waha\Exceptions\ConversationThrottledException;
 use DenLopes\Waha\Session;
 use DenLopes\Waha\Support\Pacing;
+use DenLopes\Waha\Support\PacingState;
+use DenLopes\Waha\Support\TierConfig;
 
 /**
  * A fluent wrapper around a chat that sends messages in a human-like way.
  *
- * {@see Conversation} follows the anti-ban flow recommended by WAHA:
- *
- *     markRead -> startTyping -> (random typing delay) -> stopTyping -> sendText
- *
- * It also spaces out consecutive messages with a random cooldown and enforces an
- * optional per-window message cap. When the cap is reached it throws a
- * {@see ConversationThrottledException} instead of silently hammering the
- * contact, so callers can pause/queue their outreach.
- *
- * Pacing state is intentionally kept on the instance: create one conversation
- * per logical contact conversation and reuse it for the lifetime of that flow.
- * For cross-process/global throttling combine this with Laravel's queue or rate
- * limiter primitives.
+ * Each send is gated, in order, by the delivery circuit breaker, the contact's
+ * relationship stage, WhatsApp's own reachout signals, the per-chat window cap,
+ * the per-session stage quota, and the cold unique-target budget, before the
+ * humanized dispatch happens.
  */
 final class Conversation implements ConversationContract
 {
-    private ?float $lastSentAt = null;
-
-    /**
-     * Timestamps (unix seconds, fractional) of messages sent in the current window.
-     *
-     * @var list<float>
-     */
-    private array $sentAt = [];
+    private ?ContactStage $stageOverride = null;
 
     /**
      * @param  \Closure(int):void|null  $sleep  Sleep in milliseconds; inject a no-op in tests.
      */
     public function __construct(
         private readonly Chat $chat,
-        private readonly Pacing $policy = new Pacing,
+        private readonly Pacing $policy,
+        private readonly ConversationStateStore $stateStore,
+        private readonly ContactStageStore $contactStageStore,
+        private readonly SessionRateLimiter $sessionLimiter,
+        private readonly ColdTargetLimiter $coldTargetLimiter,
+        private readonly ReachoutGuard $reachoutGuard,
+        private readonly WarmupTracker $warmupTracker,
+        private readonly CircuitBreaker $circuitBreaker,
+        private readonly bool $throwOnColdUrls = false,
+        private readonly int $circuitBreakerCooldownSeconds = 300,
         private readonly ?\Closure $sleep = null,
     ) {}
 
@@ -67,6 +72,16 @@ final class Conversation implements ConversationContract
     }
 
     /**
+     * Force a contact stage for subsequent sends, bypassing automatic resolution.
+     */
+    public function withStage(ContactStage $stage): static
+    {
+        $this->stageOverride = $stage;
+
+        return $this;
+    }
+
+    /**
      * Send a text message using the WhatsApp-safe, human-like flow.
      */
     public function send(
@@ -76,19 +91,83 @@ final class Conversation implements ConversationContract
         ?string $id = null,
         ?bool $linkPreviewHighQuality = false,
     ): Message {
-        $this->enforceWindowLimit();
-        $this->enforceCooldown();
+        $sessionName = $this->session()->value();
 
-        if ($this->policy->humanize) {
-            $this->chat->markRead();
-            $this->typeHuman($text);
+        if ($this->circuitBreaker->isOpen($sessionName)) {
+            throw new CircuitBreakerOpenException(
+                message: sprintf('Session %s delivery circuit breaker is open.', $sessionName),
+                context: [
+                    'session'              => $sessionName,
+                    'available_in_seconds' => $this->circuitBreakerCooldownSeconds,
+                ],
+                session: $sessionName,
+                availableInSeconds: $this->circuitBreakerCooldownSeconds,
+            );
         }
 
-        $message = $this->chat->sendMessage($text, $replyTo, $linkPreview, $id, $linkPreviewHighQuality);
+        $stage = $this->resolveStage($replyTo);
 
-        $this->recordSent();
+        if ($stage !== ContactStage::Cold) {
+            $this->contactStageStore->mark($sessionName, $this->chatId(), ContactStage::Warm);
+        }
 
-        return $message;
+        if ($stage === ContactStage::Cold) {
+            if ($this->throwOnColdUrls && $this->containsUrl($text)) {
+                throw new ColdMessageContainsUrlException(
+                    message: 'Cold outreach messages may not contain URLs.',
+                    context: [
+                        'session' => $sessionName,
+                        'chat_id' => $this->chatId(),
+                        'text'    => $text,
+                    ],
+                    session: $sessionName,
+                    chatId: $this->chatId(),
+                    text: $text,
+                );
+            }
+
+            $linkPreview = false;
+            $linkPreviewHighQuality = false;
+
+            $this->reachoutGuard->assertAllowed($sessionName);
+        }
+
+        return $this->stateStore->lock(
+            $this->stateKey(),
+            $this->lockTtlSecondsFor($text),
+            $this->policy->lockWaitSeconds,
+            function () use ($sessionName, $stage, $text, $replyTo, $linkPreview, $id, $linkPreviewHighQuality): Message {
+                $state = $this->loadState();
+                $now = microtime(true);
+                $tier = $this->policy->tier($stage);
+
+                $state = $state->prune($now, $tier->windowSeconds);
+                $this->enforceWindowLimit($state, $now, $tier, $stage);
+                $this->sessionLimiter->hit($sessionName, $stage, $tier);
+
+                if ($stage === ContactStage::Cold) {
+                    $this->enforceColdTargetBudget($sessionName, $tier);
+                }
+
+                $this->enforceCooldown($state, $tier);
+
+                if ($this->policy->humanize) {
+                    $this->chat->markRead();
+                    $this->wait($this->thinkingDelayMs($text));
+                    $this->typeHuman($text);
+                }
+
+                $message = $this->chat->sendMessage($text, $replyTo, $linkPreview, $id, $linkPreviewHighQuality);
+
+                $this->saveState($state->record(microtime(true), $tier->windowSeconds));
+
+                if ($stage === ContactStage::Cold) {
+                    $this->reachoutGuard->recordColdSent($sessionName);
+                }
+
+                return $message;
+            }
+        );
     }
 
     /**
@@ -104,11 +183,6 @@ final class Conversation implements ConversationContract
         return $this->send($text, $messageId, $linkPreview, $id, $linkPreviewHighQuality);
     }
 
-    /**
-     * Mark messages in the chat as read.
-     *
-     * @param  string[]|null  $messageIds
-     */
     public function markRead(?array $messageIds = null, ?string $participant = null): static
     {
         $this->chat->markRead($messageIds, $participant);
@@ -116,9 +190,6 @@ final class Conversation implements ConversationContract
         return $this;
     }
 
-    /**
-     * Start the typing indicator.
-     */
     public function startTyping(): static
     {
         $this->chat->startTyping();
@@ -126,9 +197,6 @@ final class Conversation implements ConversationContract
         return $this;
     }
 
-    /**
-     * Stop the typing indicator.
-     */
     public function stopTyping(): static
     {
         $this->chat->stopTyping();
@@ -136,9 +204,6 @@ final class Conversation implements ConversationContract
         return $this;
     }
 
-    /**
-     * Pause for the given number of milliseconds.
-     */
     public function wait(int $milliseconds): static
     {
         if ($milliseconds > 0) {
@@ -154,29 +219,52 @@ final class Conversation implements ConversationContract
      */
     public function reset(): static
     {
-        $this->lastSentAt = null;
-        $this->sentAt = [];
+        $this->stateStore->forget($this->stateKey());
 
         return $this;
     }
 
-    private function enforceWindowLimit(): void
+    private function resolveStage(?string $replyTo): ContactStage
     {
-        $max = $this->policy->maxMessagesPerWindow;
-        $window = $this->policy->windowSeconds;
+        if ($this->stageOverride !== null) {
+            return $this->stageOverride;
+        }
+
+        if ($replyTo !== null) {
+            return ContactStage::Reply;
+        }
+
+        return $this->contactStageStore->get($this->session()->value(), $this->chatId()) ?? ContactStage::Cold;
+    }
+
+    private function enforceColdTargetBudget(string $sessionName, TierConfig $tier): void
+    {
+        $base = $tier->sessionMaxUniqueTargets;
+
+        if ($base === null || $base <= 0) {
+            return;
+        }
+
+        $multiplier = $this->warmupTracker->multiplier($sessionName);
+        $effectiveMax = max(1, (int) round($base * $multiplier));
+
+        $this->coldTargetLimiter->acquire($sessionName, $this->chatId(), $effectiveMax, $tier->sessionWindowSeconds);
+    }
+
+    private function enforceWindowLimit(PacingState $state, float $now, TierConfig $tier, ContactStage $stage): void
+    {
+        $max = $tier->maxMessagesPerWindow;
+        $window = $tier->windowSeconds;
 
         if ($max <= 0 || $window <= 0) {
             return;
         }
 
-        $now = microtime(true);
-        $this->pruneWindow($now);
-
-        if (count($this->sentAt) < $max) {
+        if (count($state->sentAt) < $max) {
             return;
         }
 
-        $availableAt = $this->sentAt[0] + $window;
+        $availableAt = $state->sentAt[0] + $window;
         $availableInSeconds = max(0, (int) ceil($availableAt - $now));
 
         throw new ConversationThrottledException(
@@ -189,6 +277,7 @@ final class Conversation implements ConversationContract
             context: [
                 'chat_id'                 => $this->chatId(),
                 'session'                 => $this->session()->value(),
+                'stage'                   => $stage->value,
                 'max_messages_per_window' => $max,
                 'window_seconds'          => $window,
                 'available_in_seconds'    => $availableInSeconds,
@@ -198,19 +287,19 @@ final class Conversation implements ConversationContract
         );
     }
 
-    private function enforceCooldown(): void
+    private function enforceCooldown(PacingState $state, TierConfig $tier): void
     {
-        if ($this->lastSentAt === null) {
+        if ($state->lastSentAt === null) {
             return;
         }
 
-        $targetMs = $this->randomDelayMs($this->policy->cooldownMinMs, $this->policy->cooldownMaxMs);
+        $targetMs = $this->randomDelayMs($tier->cooldownMinMs, $tier->cooldownMaxMs);
 
         if ($targetMs <= 0) {
             return;
         }
 
-        $elapsedMs = (int) floor((microtime(true) - $this->lastSentAt) * 1000);
+        $elapsedMs = (int) floor((microtime(true) - $state->lastSentAt) * 1000);
 
         if ($elapsedMs < $targetMs) {
             $this->wait($targetMs - $elapsedMs);
@@ -236,6 +325,27 @@ final class Conversation implements ConversationContract
         }
 
         $this->chat->stopTyping();
+    }
+
+    private function thinkingDelayMs(string $text): int
+    {
+        $base = $this->randomDelayMs($this->policy->thinkingMinMs, $this->policy->thinkingMaxMs);
+
+        return $base + (int) round(mb_strlen($text) * $this->policy->thinkingMsPerCharacter);
+    }
+
+    private function lockTtlSecondsFor(string $text): int
+    {
+        $length = mb_strlen($text);
+
+        $thinkingMs = $this->policy->thinkingMaxMs + (int) ceil($length * $this->policy->thinkingMsPerCharacter);
+        $typingMs = $this->policy->maxTypingMs + (int) ceil($length * $this->policy->typingMsPerCharacter);
+        $pauseMs = substr_count($text, ' ') * $this->policy->maxTypingPauseMs;
+
+        // Buffer for the WAHA round trip and any retries.
+        $totalMs = $thinkingMs + $typingMs + $pauseMs + 10000;
+
+        return (int) ceil($totalMs / 1000);
     }
 
     private function startTypingDelayMs(): int
@@ -271,34 +381,44 @@ final class Conversation implements ConversationContract
         $min = max(0, $min);
         $max = max($min, $max);
 
-        return $min === $max ? $min : random_int($min, $max);
-    }
-
-    private function recordSent(): void
-    {
-        $now = microtime(true);
-        $this->lastSentAt = $now;
-
-        if ($this->policy->maxMessagesPerWindow > 0 && $this->policy->windowSeconds > 0) {
-            $this->sentAt[] = $now;
-            $this->pruneWindow($now);
-        }
-    }
-
-    private function pruneWindow(float $now): void
-    {
-        $window = $this->policy->windowSeconds;
-
-        if ($window <= 0) {
-            $this->sentAt = [];
-
-            return;
+        if ($min === $max) {
+            return $min;
         }
 
-        $cutoff = $now - $window;
-        $this->sentAt = array_values(array_filter(
-            $this->sentAt,
-            static fn (float $timestamp): bool => $timestamp > $cutoff,
-        ));
+        $unit = random_int(0, 1000000) / 1000000.0;
+
+        return (int) round($min + ($max - $min) * ($unit ** $this->policy->delaySkew));
+    }
+
+    private function containsUrl(string $text): bool
+    {
+        return (bool) preg_match('/https?:\/\//i', $text);
+    }
+
+    private function loadState(): PacingState
+    {
+        return $this->stateStore->get($this->stateKey()) ?? PacingState::empty();
+    }
+
+    private function saveState(PacingState $state): void
+    {
+        $this->stateStore->put($this->stateKey(), $state, $this->stateTtlSeconds());
+    }
+
+    private function stateKey(): string
+    {
+        return $this->session()->value().':'.$this->chatId();
+    }
+
+    private function stateTtlSeconds(): int
+    {
+        $span = 0;
+
+        foreach (ContactStage::cases() as $stage) {
+            $tier = $this->policy->tier($stage);
+            $span = max($span, $tier->windowSeconds, (int) ceil($tier->cooldownMaxMs / 1000));
+        }
+
+        return max(60, $span + 60);
     }
 }

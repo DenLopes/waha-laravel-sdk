@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace DenLopes\Waha\Contracts;
 
+use DenLopes\Waha\Enums\ContactStage;
 use DenLopes\Waha\Session;
 use DenLopes\Waha\Support\Pacing;
 
@@ -14,6 +15,8 @@ interface Conversation
     public function session(): Session;
 
     public function chatId(): string;
+
+    public function withStage(ContactStage $stage): static;
 
     public function send(
         string $text,

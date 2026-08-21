@@ -14,9 +14,9 @@ use InvalidArgumentException;
  * number. It also centralizes the empty-name invariant and the configured
  * default session lookup.
  */
-final readonly class Session
+final class Session
 {
-    private string $value;
+    private readonly string $value;
 
     /**
      * @throws InvalidArgumentException When the session name is empty.
